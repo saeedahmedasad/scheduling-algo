@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SJF (Non-Preemptive) Visualizer</title>
+    <style id="dynamic-styles">
+      /* --- Base Styles & Variables --- */
+      :root {
+        --bg-color: #f0f4f8; /* Lighter blue-gray */
+        --container-bg: #ffffff;
+        --section-bg: #ffffff; /* White cards */
+        --header-color: #1a253c; /* Dark blue */
+        --text-color: #334155; /* Slate gray */
+        --border-color: #e2e8f0; /* Lighter border */
+        --idle-color: #94a3b8; /* Slate */
+        --ready-color: #f59e0b; /* Amber */
+        --running-color: #10b981; /* Emerald */
+        --terminated-color: #6b7280; /* Gray */
+        --button-start: #22c55e; /* Green */
+        --button-pause: #f59e0b; /* Amber */
+        --button-reset: #ef4444; /* Red */
+        --button-hover-factor: 0.9;
+        --accent-blue: #3b82f6;
+
+        --gantt-height: 45px;
+        --queue-item-size: 38px;
+        --base-font-size: 16px;
+        --border-radius: 6px;
+        --transition-speed: 0.25s;
+        --box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
+          0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        --box-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
+          0 4px 6px -2px rgba(0, 0, 0, 0.05);
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
+          Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue",
+          sans-serif;
+        background-color: var(--bg-color);
+        color: var(--text-color);
+        line-height: 1.6;
+        font-size: var(--base-font-size);
+        padding: 25px;
+        display: flex;
+        justify-content: center;
+      }
+
+      .container {
+        background-color: var(--container-bg);
+        padding: 30px;
+        border-radius: var(--border-radius);
+        box-shadow: var(--box-shadow-lg);
+        width: 95%;
+        max-width: 1300px; /* Wider layout */
+        display: flex;
+        flex-direction: column;
+        gap: 25px; /* Spacing between main sections */
+      }
+
+      h1,
+      h3,
+      h4 {
+        color: var(--header-color);
+        margin-bottom: 10px; /* Reduced margin */
+        text-align: center;
+      }
+      h1 {
+        font-size: 1.8em;
+        margin-bottom: 20px;
+      }
+      h3 {
+        font-size: 1.3em;
+        margin-top: 10px;
+      }
+      h4 {
+        font-size: 1.1em;
+        font-weight: 600;
+        margin-bottom: 8px;
+        text-align: left;
+      }
+
+      .section {
+        background-color: var(--section-bg);
+        padding: 20px;
+        border-radius: var(--border-radius);
+        box-shadow: var(--box-shadow);
+        border: 1px solid var(--border-color);
+      }
+
+      /* --- Controls --- */
+      .controls {
+        display: flex;
+        gap: 15px;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+        padding-bottom: 15px; /* Space below controls */
+        border-bottom: 1px solid var(--border-color);
+      }
+      /* Removed TQ Label/Input Styles */
+      .controls button {
+        padding: 9px 18px;
+        color: white;
+        border: none;
+        border-radius: var(--border-radius);
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.95em;
+        transition: background-color var(--transition-speed),
+          transform 0.1s ease, filter var(--transition-speed);
+        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+      }
+      .controls button:disabled {
+        background-color: #cbd5e1 !important; /* Light slate */
+        cursor: not-allowed;
+        filter: grayscale(50%);
+      }
+      .controls button:not(:disabled):hover {
+        filter: brightness(var(--button-hover-factor));
+      }
+      .controls button:active:not(:disabled) {
+        transform: scale(0.97);
+        filter: brightness(calc(var(--button-hover-factor) * 0.95));
+      }
+      #start-button {
+        background-color: var(--button-start);
+      }
+      #pause-button {
+        background-color: var(--button-pause);
+      }
+      #reset-button {
+        background-color: var(--button-reset);
+      }
+
+      /* --- Status --- */
+      .status {
+        padding: 10px 15px;
+        border-radius: var(--border-radius);
+        text-align: center;
+        font-weight: 600;
+        font-size: 0.95em;
+        min-height: 2em; /* Reserve space */
+        transition: background-color var(--transition-speed),
+          color var(--transition-speed), opacity var(--transition-speed);
+        opacity: 0; /* Start hidden for fade-in */
+      }
+      .status.visible {
+        opacity: 1;
+      }
+      .status-info {
+        background-color: #ecfdf5;
+        color: #059669;
+        border: 1px solid #a7f3d0;
+      } /* Lighter green */
+      .status-error {
+        background-color: #fef2f2;
+        color: #dc2626;
+        border: 1px solid #fecaca;
+      } /* Lighter red */
+
+      /* --- Visualization Area Layout --- */
+      .visualization-area {
+        display: grid; /* Use Grid for more control */
+        grid-template-columns: minmax(350px, 1.5fr) 2fr; /* Table | Queue/CPU/Gantt */
+        gap: 25px;
+      }
+      .panel {
+        display: flex;
+        flex-direction: column;
+        gap: 20px; /* Space between sections in a panel */
+      }
+      .panel h3 {
+        margin-bottom: 15px;
+      } /* Space below panel titles */
+
+      /* --- Process Table --- */
+      #process-table-container {
+        overflow-x: auto;
+      }
+      .process-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9em;
+        white-space: nowrap; /* Prevent wrapping */
+      }
+      .process-table th,
+      .process-table td {
+        border: 1px solid var(--border-color);
+        padding: 9px 12px; /* More padding */
+        text-align: center;
+      }
+      .process-table th {
+        background-color: #f8fafc; /* Very light gray header */
+        color: var(--header-color);
+        font-weight: 600;
+      }
+      .process-table tr:nth-child(even) {
+        background-color: #f8fafc;
+      }
+      .process-table tr:hover {
+        background-color: #eff6ff;
+      } /* Light blue hover */
+
+      .process-table td.state-cell {
+        font-weight: 600;
+        color: white;
+        border-radius: 4px; /* Rounded badge */
+        padding: 5px 8px; /* Padding inside state cell */
+        transition: background-color var(--transition-speed) ease,
+          color var(--transition-speed) ease;
+        text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.1);
+      }
+      .state-New {
+        background-color: #e2e8f0 !important;
+        color: var(--text-color) !important;
+        text-shadow: none;
+      } /* Lighter slate */
+      .state-Ready {
+        background-color: var(--ready-color) !important;
+      }
+      .state-Running {
+        background-color: var(--running-color) !important;
+      }
+      .state-Terminated {
+        background-color: var(--terminated-color) !important;
+      }
+
+      /* Highlight running process row */
+      .process-table tr.highlight-running {
+        background-color: #dcfce7 !important; /* Light green background */
+        font-weight: bold;
+      }
+      .process-table tr.highlight-running td {
+        color: #15803d; /* Darker green text */
+      }
+      .process-table tr.highlight-running td.state-cell {
+        /* Ensure state badge overrides */
+        color: white !important;
+      }
+
+      /* --- Ready Queue --- */
+      #ready-queue {
+        min-height: 60px;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+        padding: 15px;
+        border: 1px dashed var(--border-color); /* Dashed border for queue */
+        border-radius: var(--border-radius);
+      }
+      .queue-item {
+        width: var(--queue-item-size);
+        height: var(--queue-item-size);
+        line-height: var(--queue-item-size);
+        text-align: center;
+        font-weight: 600;
+        border-radius: var(--border-radius); /* Rounded square */
+        color: white;
+        background-color: var(--ready-color);
+        box-shadow: var(--box-shadow);
+        transition: transform var(--transition-speed) ease,
+          opacity var(--transition-speed) ease;
+        opacity: 0;
+        transform: scale(0.8) translateY(10px); /* Start smaller and slightly lower */
+      }
+      .queue-item.visible {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+      }
+      .queue-empty-text {
+        width: 100%;
+        text-align: center;
+        color: var(--idle-color);
+        font-style: italic;
+      }
+
+      /* --- CPU & Clock --- */
+      .cpu-clock-container {
+        display: grid;
+        grid-template-columns: repeat(
+          auto-fit,
+          minmax(120px, 1fr)
+        ); /* Responsive columns */
+        gap: 15px;
+        text-align: center;
+      }
+      .cpu-clock-item {
+        padding: 15px;
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius);
+        box-shadow: var(--box-shadow);
+      }
+      .cpu-clock-item h4 {
+        margin-bottom: 10px;
+        text-align: center;
+      }
+      .cpu-box,
+      .clock-box {
+        padding: 8px 15px;
+        font-weight: 700; /* Bolder */
+        font-size: 1.1em;
+        border-radius: 4px;
+        display: inline-block; /* Fit content */
+        min-width: 60px;
+        text-align: center;
+      }
+      .cpu-box {
+        background-color: var(--idle-color);
+        color: white;
+        transition: background-color var(--transition-speed) ease,
+          color var(--transition-speed) ease;
+      }
+      .cpu-box.running {
+        background-color: var(--running-color);
+      }
+      .clock-box {
+        background-color: #f8fafc;
+        border: 1px solid var(--border-color);
+        color: var(--header-color);
+      }
+
+      /* --- Gantt Chart --- */
+      .gantt-section {
+        padding-bottom: 35px;
+        position: relative; /* Space for axis label */
+      }
+      .gantt-chart-container {
+        height: calc(
+          var(--gantt-height) + 25px
+        ); /* Height + time labels + buffer */
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding: 10px 5px; /* Padding top/bottom */
+        position: relative;
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius);
+        background-color: #f8fafc; /* Light background for chart area */
+        margin-top: 10px;
+      }
+      .gantt-chart-track {
+        display: flex;
+        height: var(--gantt-height);
+        min-width: 100%;
+        width: fit-content;
+        position: relative; /* For time markers */
+        border-left: 1px solid #999; /* Start line */
+      }
+      .gantt-block {
+        height: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-weight: 600; /* Slightly bolder */
+        font-size: 0.9em;
+        color: white;
+        text-align: center;
+        border-right: 1px solid rgba(0, 0, 0, 0.15); /* Subtle border */
+        box-sizing: border-box;
+        flex-shrink: 0;
+        overflow: hidden;
+        white-space: nowrap;
+        border-radius: 3px; /* Slight rounding on blocks */
+        margin: 1px 0; /* Tiny vertical margin */
+        opacity: 0;
+        animation: fade-in 0.4s ease forwards;
+        text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.2);
+      }
+      @keyframes fade-in {
+        to {
+          opacity: 1;
+        }
+      }
+
+      .gantt-block.idle {
+        background-color: var(--idle-color);
+        color: #e2e8f0;
+      }
+      .gantt-time-markers {
+        position: absolute;
+        bottom: 0px; /* Position markers right below the track */
+        left: 5px; /* Align with track padding */
+        width: calc(100% - 10px); /* Match track padding */
+        height: 20px; /* Space for the numbers */
+        margin-top: 5px; /* Space above markers */
+      }
+      .gantt-time-marker {
+        position: absolute;
+        bottom: 0;
+        font-size: 0.8em;
+        color: #475569; /* Darker gray for time */
+        transform: translateX(-50%); /* Center the label */
+        border-left: 1px solid #cbd5e1; /* Tick mark */
+        height: 5px; /* Tick height */
+        padding-left: 3px; /* Space text from tick */
+      }
+      .gantt-time-marker span {
+        display: inline-block;
+        transform: translateY(-18px); /* Position number above tick */
+      }
+
+      .gantt-axis-label {
+        position: absolute;
+        bottom: 0px; /* Below the markers */
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 0.85em;
+        font-weight: 600;
+        color: var(--header-color);
+      }
+
+      /* --- Metrics --- */
+      .metrics {
+        text-align: center;
+      }
+      .metrics p {
+        font-weight: 600;
+        font-size: 1.05em;
+        color: var(--header-color);
+        margin-bottom: 8px;
+        background-color: #f8fafc;
+        padding: 8px;
+        border-radius: 4px;
+        border: 1px solid var(--border-color);
+        display: inline-block; /* Fit content */
+        min-width: 250px; /* Ensure decent width */
+        margin-left: 10px;
+        margin-right: 10px;
+      }
+      .metrics p span {
+        font-weight: 700;
+        color: var(--accent-blue); /* Highlight value */
+      }
+
+      /* --- Responsive Adjustments (Basic) --- */
+      @media (max-width: 1100px) {
+        .visualization-area {
+          grid-template-columns: 1fr; /* Stack panels */
+        }
+        .left-panel {
+          max-width: none;
+        } /* Allow table to take full width */
+      }
+      @media (max-width: 768px) {
+        body {
+          padding: 15px;
+        }
+        .container {
+          padding: 20px;
+        }
+        h1 {
+          font-size: 1.5em;
+        }
+        .controls {
+          gap: 10px;
+        }
+        .controls button {
+          padding: 8px 14px;
+          font-size: 0.9em;
+        }
+        .cpu-clock-container {
+          grid-template-columns: 1fr;
+        } /* Stack CPU/Clock */
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Structure will be created by JavaScript -->
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        // --- Configuration ---
+        const SIMULATION_SPEED_MS = 650; // Speed of each time unit
+
+        // --- Test Data ---
+        const initialProcessesData = [
+          { id: "P1", arrivalTime: 0, burstTime: 8, priority: 2 },
+          { id: "P2", arrivalTime: 1, burstTime: 4, priority: 1 },
+          { id: "P3", arrivalTime: 2, burstTime: 9, priority: 3 },
+          { id: "P4", arrivalTime: 3, burstTime: 5, priority: 2 },
+          { id: "P5", arrivalTime: 4, burstTime: 2, priority: 4 }, // Shortest
+          { id: "P6", arrivalTime: 5, burstTime: 6, priority: 1 },
+          { id: "P7", arrivalTime: 6, burstTime: 3, priority: 5 },
+        ];
+
+        // --- State Variables ---
+        let processes = [];
+        let readyQueue = []; // Stores process IDs
+        let ganttData = [];
+        let currentTime = 0;
+        let runningProcessId = null;
+        let runningProcessRow = null;
+        let completedProcessesCount = 0;
+        let simulationInterval = null;
+        let isPaused = false;
+        let lastGanttEntry = null;
+
+        // Colors for processes
+        const processColors = [
+          "#3b82f6",
+          "#ef4444",
+          "#10b981",
+          "#f59e0b",
+          "#8b5cf6",
+          "#06b6d4",
+          "#ec4899",
+          "#65a30d",
+          "#d97706",
+          "#0ea5e9",
+        ];
+
+        // --- DOM Elements ---
+        let container,
+          controlsDiv,
+          visualizationDiv,
+          processTableContainer,
+          readyQueueDiv,
+          cpuDiv,
+          clockDiv,
+          ganttChartContainer,
+          ganttChartTrack,
+          ganttTimeMarkersContainer,
+          ganttAxisLabel,
+          metricsDiv,
+          statusDiv;
+        let startButton, pauseButton, resetButton;
+
+        // --- Core Functions ---
+
+        // 1. Create DOM (Identical to FCFS version, except title)
+        function createDOM() {
+          container = document.createElement("div");
+          container.className = "container";
+
+          const title = document.createElement("h1");
+          title.textContent = "SJF (Non-Preemptive) Visualizer"; // Changed Title
+          container.appendChild(title);
+
+          // Controls (No Time Quantum Input)
+          controlsDiv = document.createElement("div");
+          controlsDiv.className = "controls";
+          startButton = document.createElement("button");
+          startButton.id = "start-button";
+          startButton.textContent = "Start";
+          startButton.addEventListener("click", startSimulation);
+          pauseButton = document.createElement("button");
+          pauseButton.id = "pause-button";
+          pauseButton.textContent = "Pause";
+          pauseButton.disabled = true;
+          pauseButton.addEventListener("click", pauseSimulation);
+          resetButton = document.createElement("button");
+          resetButton.id = "reset-button";
+          resetButton.textContent = "Reset";
+          resetButton.addEventListener("click", resetSimulation);
+          controlsDiv.appendChild(startButton);
+          controlsDiv.appendChild(pauseButton);
+          controlsDiv.appendChild(resetButton);
+          container.appendChild(controlsDiv);
+
+          // Status Display
+          statusDiv = document.createElement("div");
+          statusDiv.className = "status status-info";
+          statusDiv.id = "status-message";
+          container.appendChild(statusDiv);
+
+          // Visualization Area (Grid Layout) - Same as RR/FCFS
+          visualizationDiv = document.createElement("div");
+          visualizationDiv.className = "visualization-area";
+          const leftPanel = document.createElement("div");
+          leftPanel.className = "panel left-panel section";
+          const tableTitle = document.createElement("h3");
+          tableTitle.textContent = "Process Details";
+          processTableContainer = document.createElement("div");
+          processTableContainer.id = "process-table-container";
+          leftPanel.appendChild(tableTitle);
+          leftPanel.appendChild(processTableContainer);
+          const rightPanel = document.createElement("div");
+          rightPanel.className = "panel right-panel";
+          const queueSection = document.createElement("div");
+          queueSection.className = "section";
+          const queueTitle = document.createElement("h3");
+          queueTitle.textContent = "Ready Queue";
+          readyQueueDiv = document.createElement("div");
+          readyQueueDiv.id = "ready-queue";
+          queueSection.appendChild(queueTitle);
+          queueSection.appendChild(readyQueueDiv);
+          const cpuClockSection = document.createElement("div");
+          cpuClockSection.className = "section cpu-clock-container";
+          const cpuItem = document.createElement("div");
+          cpuItem.className = "cpu-clock-item";
+          const cpuTitle = document.createElement("h4");
+          cpuTitle.textContent = "CPU";
+          cpuDiv = document.createElement("div");
+          cpuDiv.id = "cpu-status";
+          cpuDiv.className = "cpu-box idle";
+          cpuDiv.textContent = "Idle";
+          cpuItem.appendChild(cpuTitle);
+          cpuItem.appendChild(cpuDiv);
+          const clockItem = document.createElement("div");
+          clockItem.className = "cpu-clock-item";
+          const clockTitle = document.createElement("h4");
+          clockTitle.textContent = "Clock";
+          clockDiv = document.createElement("div");
+          clockDiv.id = "clock";
+          clockDiv.className = "clock-box";
+          clockDiv.textContent = "0";
+          clockItem.appendChild(clockTitle);
+          clockItem.appendChild(clockDiv);
+          cpuClockSection.appendChild(cpuItem);
+          cpuClockSection.appendChild(clockItem);
+          const ganttSection = document.createElement("div");
+          ganttSection.className = "section gantt-section";
+          const ganttTitle = document.createElement("h3");
+          ganttTitle.textContent = "Gantt Chart";
+          ganttChartContainer = document.createElement("div");
+          ganttChartContainer.id = "gantt-chart";
+          ganttChartContainer.className = "gantt-chart-container";
+          ganttChartTrack = document.createElement("div");
+          ganttChartTrack.className = "gantt-chart-track";
+          ganttTimeMarkersContainer = document.createElement("div");
+          ganttTimeMarkersContainer.className = "gantt-time-markers";
+          ganttAxisLabel = document.createElement("div");
+          ganttAxisLabel.className = "gantt-axis-label";
+          ganttAxisLabel.textContent = "Time";
+          ganttChartContainer.appendChild(ganttChartTrack);
+          ganttChartContainer.appendChild(ganttTimeMarkersContainer);
+          ganttSection.appendChild(ganttTitle);
+          ganttSection.appendChild(ganttChartContainer);
+          ganttSection.appendChild(ganttAxisLabel);
+          metricsDiv = document.createElement("div");
+          metricsDiv.id = "metrics";
+          metricsDiv.className = "metrics section";
+          metricsDiv.style.display = "none";
+          rightPanel.appendChild(queueSection);
+          rightPanel.appendChild(cpuClockSection);
+          rightPanel.appendChild(ganttSection);
+          rightPanel.appendChild(metricsDiv);
+          visualizationDiv.appendChild(leftPanel);
+          visualizationDiv.appendChild(rightPanel);
+          container.appendChild(visualizationDiv);
+
+          document.body.appendChild(container);
+        }
+
+        // 2. Inject CSS (Using <style> tag in head)
+        function applyStyles() {
+          /* Styles are already in the head */
+        }
+
+        // 3. Initialize Simulation (Identical to FCFS)
+        function initializeSimulation() {
+          processes = JSON.parse(JSON.stringify(initialProcessesData)).map(
+            (p) => ({
+              ...p,
+              remainingBurstTime: p.burstTime,
+              state: "New",
+              startTime: -1,
+              completionTime: -1,
+              waitingTime: 0,
+              turnaroundTime: 0,
+              _lastExecutionTime: p.arrivalTime,
+              _color: getProcessColor(p.id),
+            })
+          );
+          readyQueue = [];
+          ganttData = [];
+          currentTime = 0;
+          runningProcessId = null;
+          unhighlightProcessRow();
+          completedProcessesCount = 0;
+          lastGanttEntry = null;
+          isPaused = false;
+          if (simulationInterval) {
+            clearInterval(simulationInterval);
+            simulationInterval = null;
+          }
+          renderProcessTable();
+          renderReadyQueue();
+          renderCPU();
+          renderGanttChart();
+          clockDiv.textContent = "0";
+          metricsDiv.innerHTML = "";
+          metricsDiv.style.display = "none";
+          updateStatus("Simulation reset. Press Start.", true);
+          startButton.disabled = false;
+          pauseButton.textContent = "Pause";
+          pauseButton.disabled = true;
+        }
+
+        // --- Rendering Functions (Identical to FCFS/RR) ---
+        function renderProcessTable() {
+          /* ... same as FCFS/RR ... */
+          let tableHTML = `<table class="process-table"><thead><tr>
+                    <th>ID</th><th>Arrival</th><th>Burst</th><th>Pri</th>
+                    <th>Remain</th><th>State</th><th>Wait</th><th>TAT</th>
+                </tr></thead><tbody>`;
+          processes.sort((a, b) =>
+            a.id.localeCompare(b.id, undefined, { numeric: true })
+          );
+          processes.forEach((p) => {
+            tableHTML += `<tr id="proc-row-${p.id}">
+                        <td>${p.id}</td><td>${p.arrivalTime}</td><td>${
+              p.burstTime
+            }</td><td>${p.priority}</td>
+                        <td class="remaining-time">${p.remainingBurstTime}</td>
+                        <td class="state-cell state-${p.state}">${p.state}</td>
+                        <td class="wait-time">${p.waitingTime}</td>
+                        <td class="turnaround-time">${
+                          p.turnaroundTime > 0 ? p.turnaroundTime : "-"
+                        }</td>
+                    </tr>`;
+          });
+          tableHTML += `</tbody></table>`;
+          processTableContainer.innerHTML = tableHTML;
+          unhighlightProcessRow();
+        }
+        function renderReadyQueue() {
+          /* ... same as FCFS/RR ... */
+          readyQueueDiv.innerHTML = "";
+          if (readyQueue.length === 0) {
+            const emptyText = document.createElement("div");
+            emptyText.className = "queue-empty-text";
+            emptyText.textContent = "Queue Empty";
+            readyQueueDiv.appendChild(emptyText);
+          } else {
+            // Sort ready queue display visually by ID for consistency, though logic uses burst time
+            const sortedQueue = [...readyQueue].sort((a, b) =>
+              a.localeCompare(b, undefined, { numeric: true })
+            );
+            sortedQueue.forEach((pid, index) => {
+              const item = document.createElement("div");
+              item.className = "queue-item";
+              item.textContent = pid;
+              const proc = findProcessById(pid);
+              item.style.backgroundColor = proc
+                ? proc._color
+                : "var(--idle-color)";
+              readyQueueDiv.appendChild(item);
+              setTimeout(() => item.classList.add("visible"), 30 * index);
+            });
+          }
+        }
+        function renderCPU() {
+          /* ... same as FCFS/RR ... */
+          unhighlightProcessRow();
+          if (runningProcessId) {
+            const proc = findProcessById(runningProcessId);
+            cpuDiv.textContent = runningProcessId;
+            cpuDiv.className = "cpu-box running";
+            cpuDiv.style.backgroundColor = proc
+              ? proc._color
+              : "var(--running-color)";
+            highlightProcessRow(runningProcessId);
+          } else {
+            cpuDiv.textContent = "Idle";
+            cpuDiv.className = "cpu-box idle";
+            cpuDiv.style.backgroundColor = "var(--idle-color)";
+          }
+        }
+        function highlightProcessRow(processId) {
+          /* ... same as FCFS/RR ... */
+          unhighlightProcessRow();
+          runningProcessRow = document.getElementById(`proc-row-${processId}`);
+          if (runningProcessRow) {
+            runningProcessRow.classList.add("highlight-running");
+          }
+        }
+        function unhighlightProcessRow() {
+          /* ... same as FCFS/RR ... */
+          if (runningProcessRow) {
+            runningProcessRow.classList.remove("highlight-running");
+            runningProcessRow = null;
+          }
+        }
+        function renderGanttChart() {
+          /* ... same as FCFS/RR ... */
+          ganttChartTrack.innerHTML = "";
+          ganttTimeMarkersContainer.innerHTML = "";
+          if (ganttData.length === 0 && currentTime === 0) {
+            addTimeMarker(0);
+            return;
+          }
+          const blockPixelWidth = 30;
+          let totalDuration = 0;
+          const timePoints = new Set([0]);
+          ganttData.forEach((block) => {
+            const blockDiv = document.createElement("div");
+            blockDiv.className = "gantt-block";
+            const duration = block.end - block.start;
+            blockDiv.style.width = `${duration * blockPixelWidth}px`;
+            totalDuration = Math.max(totalDuration, block.end);
+            timePoints.add(block.end);
+            if (block.isIdle) {
+              blockDiv.classList.add("idle");
+              blockDiv.textContent = `Idle`;
+              blockDiv.title = `Idle from ${block.start} to ${block.end}`;
+            } else {
+              const proc = findProcessById(block.processId);
+              blockDiv.textContent = `${block.processId}`;
+              blockDiv.style.backgroundColor = proc ? proc._color : "gray";
+              blockDiv.title = `${block.processId} from ${block.start} to ${block.end}`;
+            }
+            ganttChartTrack.appendChild(blockDiv);
+          });
+          const sortedTimePoints = Array.from(timePoints).sort((a, b) => a - b);
+          sortedTimePoints.forEach((time) =>
+            addTimeMarker(time, blockPixelWidth)
+          );
+          ganttChartTrack.style.minWidth = `${
+            totalDuration * blockPixelWidth
+          }px`;
+          ganttChartContainer.scrollLeft = ganttChartTrack.scrollWidth;
+        }
+        function addTimeMarker(time, pixelWidth = 30) {
+          /* ... same as FCFS/RR ... */
+          const marker = document.createElement("div");
+          marker.className = "gantt-time-marker";
+          marker.style.left = `${time * pixelWidth}px`;
+          const markerLabel = document.createElement("span");
+          markerLabel.textContent = time;
+          marker.appendChild(markerLabel);
+          ganttTimeMarkersContainer.appendChild(marker);
+        }
+        function renderMetrics() {
+          /* ... same as FCFS/RR ... */
+          if (completedProcessesCount !== processes.length) return;
+          let totalWT = 0,
+            totalTAT = 0;
+          processes.forEach((p) => {
+            totalWT += p.waitingTime;
+            totalTAT += p.turnaroundTime;
+          });
+          const avgWT = (totalWT / processes.length).toFixed(2);
+          const avgTAT = (totalTAT / processes.length).toFixed(2);
+          metricsDiv.innerHTML = `
+                    <h3>Performance Metrics</h3>
+                    <p>Avg. Waiting Time: <span>${avgWT}</span></p>
+                    <p>Avg. Turnaround Time: <span>${avgTAT}</span></p>`;
+          metricsDiv.style.display = "block";
+        }
+        function updateProcessTableRow(process) {
+          /* ... same as FCFS/RR ... */
+          const row = document.getElementById(`proc-row-${process.id}`);
+          if (row) {
+            row.querySelector(".remaining-time").textContent =
+              process.remainingBurstTime;
+            const stateCell = row.querySelector(".state-cell");
+            stateCell.textContent = process.state;
+            stateCell.className = `state-cell state-${process.state}`;
+            row.querySelector(".wait-time").textContent = process.waitingTime;
+            row.querySelector(".turnaround-time").textContent =
+              process.completionTime !== -1 ? process.turnaroundTime : "-";
+          }
+        }
+        function getProcessColor(processId) {
+          /* ... same as FCFS/RR ... */
+          if (!processId || processId === "Idle") return "var(--idle-color)";
+          try {
+            const num = parseInt(processId.substring(1), 10);
+            return processColors[
+              (num - 1 + processColors.length) % processColors.length
+            ];
+          } catch (e) {
+            return processColors[0];
+          }
+        }
+        function findProcessById(id) {
+          /* ... same as FCFS/RR ... */
+          return processes.find((p) => p.id === id);
+        }
+        function addGanttBlock(processId, isIdle) {
+          /* ... same as FCFS/RR ... */
+          const currentEntry = { id: processId, isIdle: isIdle };
+          if (
+            ganttData.length > 0 &&
+            lastGanttEntry &&
+            lastGanttEntry.id === currentEntry.id &&
+            lastGanttEntry.isIdle === currentEntry.isIdle
+          ) {
+            ganttData[ganttData.length - 1].end = currentTime + 1;
+          } else {
+            ganttData.push({
+              processId: processId,
+              start: currentTime,
+              end: currentTime + 1,
+              isIdle: isIdle,
+            });
+            lastGanttEntry = currentEntry;
+          }
+          renderGanttChart();
+        }
+
+        // --- Simulation Logic ---
+
+        // 11. Simulation Step (SJF Non-Preemptive Logic)
+        function simulationStep() {
+          if (isPaused || completedProcessesCount === processes.length) return;
+
+          // A. Check for new arrivals & add to ready queue
+          let newArrivals = false;
+          processes.forEach((p) => {
+            if (p.state === "New" && p.arrivalTime <= currentTime) {
+              p.state = "Ready";
+              p._lastExecutionTime = currentTime; // Record when it became ready
+              readyQueue.push(p.id);
+              updateProcessTableRow(p);
+              newArrivals = true;
+            }
+          });
+          // Important: Render queue AFTER checking all arrivals for the current time step
+          if (newArrivals) renderReadyQueue();
+
+          // B. Handle running process (runs until completion)
+          let processCompleted = false;
+          if (runningProcessId) {
+            const runningProc = findProcessById(runningProcessId);
+            runningProc.remainingBurstTime--;
+            updateProcessTableRow(runningProc);
+            addGanttBlock(runningProc.id, false);
+
+            // Check Completion
+            if (runningProc.remainingBurstTime === 0) {
+              runningProc.state = "Terminated";
+              runningProc.completionTime = currentTime + 1;
+              runningProc.turnaroundTime =
+                runningProc.completionTime - runningProc.arrivalTime;
+              runningProc.waitingTime =
+                runningProc.turnaroundTime - runningProc.burstTime;
+              updateProcessTableRow(runningProc);
+              completedProcessesCount++;
+              processCompleted = true;
+              runningProcessId = null; // Free the CPU
+            }
+          } else {
+            // CPU is Idle
+            addGanttBlock(null, true);
+          }
+
+          // C. Select next process if CPU is idle (SJF Logic)
+          if (!runningProcessId && readyQueue.length > 0) {
+            let shortestJobId = null;
+            let shortestBurst = Infinity;
+            let shortestJobIndex = -1;
+
+            // Find the shortest job among currently ready processes
+            for (let i = 0; i < readyQueue.length; i++) {
+              const pid = readyQueue[i];
+              const proc = findProcessById(pid);
+              if (proc && proc.remainingBurstTime < shortestBurst) {
+                shortestBurst = proc.remainingBurstTime;
+                shortestJobId = pid;
+                shortestJobIndex = i;
+              }
+              // Tie-breaking: FCFS (implicitly handled by selecting the first one found with the minimum burst)
+            }
+
+            // If a shortest job is found
+            if (shortestJobId !== null) {
+              runningProcessId = shortestJobId; // Assign the shortest job to run
+              readyQueue.splice(shortestJobIndex, 1); // Remove it from the ready queue
+
+              const nextProc = findProcessById(runningProcessId);
+              nextProc.state = "Running";
+              // Calculate waiting time accumulated JUST BEFORE starting
+              nextProc.waitingTime += currentTime - nextProc._lastExecutionTime;
+              if (nextProc.startTime === -1) nextProc.startTime = currentTime;
+              updateProcessTableRow(nextProc);
+              renderReadyQueue(); // Update queue display (after removal)
+            }
+          }
+
+          // D. Update UI (CPU, Clock)
+          renderCPU();
+          currentTime++;
+          clockDiv.textContent = currentTime;
+
+          // E. Check for simulation end
+          if (completedProcessesCount === processes.length) {
+            endSimulation();
+          }
+        }
+
+        // --- Simulation Controls (Identical to FCFS) ---
+        function startSimulation() {
+          /* ... same as FCFS ... */
+          if (simulationInterval) return;
+          if (currentTime > 0 && !isPaused) {
+            initializeSimulation();
+          }
+          isPaused = false;
+          simulationInterval = setInterval(simulationStep, SIMULATION_SPEED_MS);
+          startButton.disabled = true;
+          pauseButton.disabled = false;
+          pauseButton.textContent = "Pause";
+          updateStatus("Simulation started...", true);
+        }
+        function pauseSimulation() {
+          /* ... same as FCFS ... */
+          if (!simulationInterval && !isPaused) return;
+          isPaused = !isPaused;
+          if (isPaused) {
+            pauseButton.textContent = "Resume";
+            updateStatus(`Simulation paused at Time: ${currentTime}`, true);
+          } else {
+            pauseButton.textContent = "Pause";
+            updateStatus("Simulation resumed...", true);
+          }
+        }
+        function resetSimulation() {
+          initializeSimulation();
+        }
+        function endSimulation() {
+          /* ... same as FCFS ... */
+          if (simulationInterval) {
+            clearInterval(simulationInterval);
+            simulationInterval = null;
+          }
+          updateStatus(`Simulation finished at Time: ${currentTime}.`, true);
+          startButton.disabled = true;
+          pauseButton.disabled = true;
+          unhighlightProcessRow();
+          renderMetrics();
+        }
+
+        // --- Utility ---
+        function updateStatus(message, isInfo = true) {
+          /* ... same as FCFS/RR ... */
+          statusDiv.textContent = message;
+          statusDiv.className = `status ${
+            isInfo ? "status-info" : "status-error"
+          }`;
+          statusDiv.classList.add("visible");
+        }
+
+        // --- Initial Setup ---
+        createDOM();
+        applyStyles();
+        initializeSimulation(); // Set initial state and render
+      });
+    </script>
+  </body>
+</html>
