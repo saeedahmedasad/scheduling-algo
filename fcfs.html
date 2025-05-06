@@ -107,7 +107,6 @@
         padding-bottom: 15px; /* Space below controls */
         border-bottom: 1px solid var(--border-color);
       }
-      /* Removed TQ Label/Input Styles */
       .controls button {
         padding: 9px 18px;
         color: white;
@@ -140,6 +139,63 @@
       }
       #reset-button {
         background-color: var(--button-reset);
+      }
+
+      /* --- Custom Process Section --- */
+      .add-process-section h3 {
+        text-align: left;
+        margin-bottom: 15px;
+      }
+      .add-process-section .form-grid-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 15px;
+        align-items: flex-end;
+      }
+      .add-process-section .form-grid-container > div {
+        /* For input label groups */
+        display: flex;
+        flex-direction: column;
+      }
+      .add-process-section label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: 500;
+        font-size: 0.9em;
+      }
+      .add-process-section input[type="number"] {
+        padding: 8px 10px;
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius);
+        font-size: 0.9em;
+        width: 100%;
+      }
+      .add-process-section button {
+        padding: 9px 18px;
+        color: white;
+        border: none;
+        border-radius: var(--border-radius);
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.9em;
+        transition: background-color var(--transition-speed),
+          transform 0.1s ease;
+        height: 38px; /* Approx height of input field with padding */
+        margin-top: 5px; /* Align with inputs having labels above */
+      }
+      #add-proc-btn {
+        background-color: var(--accent-blue);
+      }
+      #clear-custom-btn {
+        background-color: var(--button-reset);
+      } /* Using red for clear */
+      #add-proc-btn:hover,
+      #clear-custom-btn:hover {
+        filter: brightness(var(--button-hover-factor));
+      }
+      #add-proc-btn:active,
+      #clear-custom-btn:active {
+        transform: scale(0.97);
       }
 
       /* --- Status --- */
@@ -347,6 +403,7 @@
         border-radius: var(--border-radius);
         background-color: #f8fafc; /* Light background for chart area */
         margin-top: 10px;
+        max-width: 800px;
       }
       .gantt-chart-track {
         display: flex;
@@ -447,9 +504,9 @@
         .visualization-area {
           grid-template-columns: 1fr; /* Stack panels */
         }
-        .left-panel {
-          max-width: none;
-        } /* Allow table to take full width */
+        .add-process-section .form-grid-container {
+          grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        }
       }
       @media (max-width: 768px) {
         body {
@@ -464,13 +521,20 @@
         .controls {
           gap: 10px;
         }
-        .controls button {
+        .controls button,
+        .add-process-section button {
           padding: 8px 14px;
           font-size: 0.9em;
         }
         .cpu-clock-container {
           grid-template-columns: 1fr;
         } /* Stack CPU/Clock */
+        .add-process-section .form-grid-container {
+          grid-template-columns: 1fr; /* Stack inputs on smallest screens */
+        }
+        .add-process-section button {
+          width: 100%; /* Full width buttons on small screens */
+        }
       }
     </style>
   </head>
@@ -487,9 +551,6 @@
           { id: "P2", arrivalTime: 1, burstTime: 4, priority: 1 },
           { id: "P3", arrivalTime: 2, burstTime: 9, priority: 3 },
           { id: "P4", arrivalTime: 3, burstTime: 5, priority: 2 },
-          { id: "P5", arrivalTime: 4, burstTime: 2, priority: 4 },
-          { id: "P6", arrivalTime: 5, burstTime: 6, priority: 1 },
-          { id: "P7", arrivalTime: 6, burstTime: 3, priority: 5 },
         ];
 
         // --- State Variables ---
@@ -498,13 +559,15 @@
         let ganttData = [];
         let currentTime = 0;
         let runningProcessId = null;
-        let runningProcessRow = null; // Reference to the highlighted table row
+        let runningProcessRow = null;
         let completedProcessesCount = 0;
         let simulationInterval = null;
         let isPaused = false;
-        let lastGanttEntry = null; // Stores last {id, isIdle} for merging
+        let lastGanttEntry = null;
 
-        // Colors for processes in Gantt Chart
+        let userAddedProcesses = []; // Stores custom processes
+        let nextCustomProcessId = 1; // Counter for P_c1, P_c2, etc.
+
         const processColors = [
           "#3b82f6",
           "#ef4444",
@@ -532,20 +595,21 @@
           ganttAxisLabel,
           metricsDiv,
           statusDiv;
-        let startButton, pauseButton, resetButton; // Removed tqInput
+        let startButton, pauseButton, resetButton;
+        let arrivalTimeInput,
+          burstTimeInput,
+          priorityInput,
+          addProcessButton,
+          clearCustomButton;
 
-        // --- Core Functions ---
-
-        // 1. Create DOM
         function createDOM() {
           container = document.createElement("div");
           container.className = "container";
 
           const title = document.createElement("h1");
-          title.textContent = "FCFS Scheduling Visualizer"; // Changed Title
+          title.textContent = "FCFS Scheduling Visualizer";
           container.appendChild(title);
 
-          // Controls (No Time Quantum Input)
           controlsDiv = document.createElement("div");
           controlsDiv.className = "controls";
           startButton = document.createElement("button");
@@ -559,20 +623,88 @@
           pauseButton.addEventListener("click", pauseSimulation);
           resetButton = document.createElement("button");
           resetButton.id = "reset-button";
-          resetButton.textContent = "Reset";
+          resetButton.textContent = "Reset Sim"; // Renamed for clarity w/ new button
           resetButton.addEventListener("click", resetSimulation);
           controlsDiv.appendChild(startButton);
           controlsDiv.appendChild(pauseButton);
           controlsDiv.appendChild(resetButton);
           container.appendChild(controlsDiv);
 
-          // Status Display
           statusDiv = document.createElement("div");
           statusDiv.className = "status status-info";
           statusDiv.id = "status-message";
           container.appendChild(statusDiv);
 
-          // Visualization Area (Grid Layout) - Same as RR
+          // --- Custom Process Input Section ---
+          const customProcessSection = document.createElement("div");
+          customProcessSection.className = "section add-process-section";
+          const customProcessTitle = document.createElement("h3");
+          customProcessTitle.textContent = "Manage Processes";
+          customProcessSection.appendChild(customProcessTitle);
+
+          const formGrid = document.createElement("div");
+          formGrid.className = "form-grid-container";
+
+          // Arrival Time Input
+          const atDiv = document.createElement("div");
+          const atLabel = document.createElement("label");
+          atLabel.htmlFor = "custom-arrival-time";
+          atLabel.textContent = "Arrival Time:";
+          arrivalTimeInput = document.createElement("input");
+          arrivalTimeInput.type = "number";
+          arrivalTimeInput.id = "custom-arrival-time";
+          arrivalTimeInput.min = "0";
+          arrivalTimeInput.placeholder = "e.g., 0";
+          atDiv.appendChild(atLabel);
+          atDiv.appendChild(arrivalTimeInput);
+          formGrid.appendChild(atDiv);
+
+          // Burst Time Input
+          const btDiv = document.createElement("div");
+          const btLabel = document.createElement("label");
+          btLabel.htmlFor = "custom-burst-time";
+          btLabel.textContent = "Burst Time:";
+          burstTimeInput = document.createElement("input");
+          burstTimeInput.type = "number";
+          burstTimeInput.id = "custom-burst-time";
+          burstTimeInput.min = "1";
+          burstTimeInput.placeholder = "e.g., 5";
+          btDiv.appendChild(btLabel);
+          btDiv.appendChild(burstTimeInput);
+          formGrid.appendChild(btDiv);
+
+          // Priority Input
+          const prioDiv = document.createElement("div");
+          const prioLabel = document.createElement("label");
+          prioLabel.htmlFor = "custom-priority";
+          prioLabel.textContent = "Priority (opt):";
+          priorityInput = document.createElement("input");
+          priorityInput.type = "number";
+          priorityInput.id = "custom-priority";
+          priorityInput.min = "1";
+          priorityInput.placeholder = "e.g., 1";
+          prioDiv.appendChild(prioLabel);
+          prioDiv.appendChild(priorityInput);
+          formGrid.appendChild(prioDiv);
+
+          addProcessButton = document.createElement("button");
+          addProcessButton.id = "add-proc-btn";
+          addProcessButton.textContent = "Add Process";
+          addProcessButton.addEventListener("click", handleAddProcess);
+          formGrid.appendChild(addProcessButton);
+
+          clearCustomButton = document.createElement("button");
+          clearCustomButton.id = "clear-custom-btn";
+          clearCustomButton.textContent = "Clear & Use Defaults";
+          clearCustomButton.addEventListener(
+            "click",
+            handleClearCustomProcesses
+          );
+          formGrid.appendChild(clearCustomButton);
+
+          customProcessSection.appendChild(formGrid);
+          container.appendChild(customProcessSection);
+
           visualizationDiv = document.createElement("div");
           visualizationDiv.className = "visualization-area";
           const leftPanel = document.createElement("div");
@@ -583,6 +715,7 @@
           processTableContainer.id = "process-table-container";
           leftPanel.appendChild(tableTitle);
           leftPanel.appendChild(processTableContainer);
+
           const rightPanel = document.createElement("div");
           rightPanel.className = "panel right-panel";
           const queueSection = document.createElement("div");
@@ -593,6 +726,7 @@
           readyQueueDiv.id = "ready-queue";
           queueSection.appendChild(queueTitle);
           queueSection.appendChild(readyQueueDiv);
+
           const cpuClockSection = document.createElement("div");
           cpuClockSection.className = "section cpu-clock-container";
           const cpuItem = document.createElement("div");
@@ -617,6 +751,7 @@
           clockItem.appendChild(clockDiv);
           cpuClockSection.appendChild(cpuItem);
           cpuClockSection.appendChild(clockItem);
+
           const ganttSection = document.createElement("div");
           ganttSection.className = "section gantt-section";
           const ganttTitle = document.createElement("h3");
@@ -636,10 +771,12 @@
           ganttSection.appendChild(ganttTitle);
           ganttSection.appendChild(ganttChartContainer);
           ganttSection.appendChild(ganttAxisLabel);
+
           metricsDiv = document.createElement("div");
           metricsDiv.id = "metrics";
           metricsDiv.className = "metrics section";
           metricsDiv.style.display = "none";
+
           rightPanel.appendChild(queueSection);
           rightPanel.appendChild(cpuClockSection);
           rightPanel.appendChild(ganttSection);
@@ -651,27 +788,33 @@
           document.body.appendChild(container);
         }
 
-        // 2. Inject CSS (Using <style> tag in head)
-        function applyStyles() {
-          /* Styles are already in the head */
-        }
-
-        // 3. Initialize Simulation
         function initializeSimulation() {
-          // --- Reset State Variables ---
-          processes = JSON.parse(JSON.stringify(initialProcessesData)).map(
-            (p) => ({
+          const sourceData =
+            userAddedProcesses.length > 0
+              ? userAddedProcesses
+              : initialProcessesData;
+
+          processes = JSON.parse(JSON.stringify(sourceData)).map(
+            (p, index) => ({
               ...p,
+              id: p.id || `P_c${index + 1}`, // Use P_c for auto-generated from custom if no ID
               remainingBurstTime: p.burstTime,
               state: "New",
               startTime: -1,
               completionTime: -1,
               waitingTime: 0,
               turnaroundTime: 0,
-              _lastExecutionTime: p.arrivalTime, // Time it entered Ready or started Running
-              _color: getProcessColor(p.id),
+              _lastExecutionTime: p.arrivalTime,
+              _color: getProcessColor(p.id || `P_c${index + 1}`),
+              priority:
+                p.priority === undefined ||
+                p.priority === null ||
+                isNaN(parseInt(p.priority))
+                  ? 1
+                  : parseInt(p.priority),
             })
           );
+
           readyQueue = [];
           ganttData = [];
           currentTime = 0;
@@ -686,33 +829,44 @@
             simulationInterval = null;
           }
 
-          // --- Reset UI Elements ---
           renderProcessTable();
           renderReadyQueue();
           renderCPU();
-          renderGanttChart(); // Clear and render initial state
+          renderGanttChart();
           clockDiv.textContent = "0";
           metricsDiv.innerHTML = "";
           metricsDiv.style.display = "none";
-          updateStatus("Simulation reset. Press Start.", true); // Updated message
 
-          // --- Reset Buttons ---
-          startButton.disabled = false;
+          let initMessage = "Simulation state reset. ";
+          if (userAddedProcesses.length > 0) {
+            initMessage += "Using custom process list. ";
+          } else {
+            initMessage += "Using default process list. ";
+          }
+          initMessage +=
+            processes.length > 0 ? "Press Start." : "Add processes to start.";
+          updateStatus(initMessage, true);
+
+          startButton.disabled = processes.length === 0;
           pauseButton.textContent = "Pause";
           pauseButton.disabled = true;
         }
 
-        // --- Rendering Functions (Identical to RR version) ---
         function renderProcessTable() {
-          /* ... same as RR ... */
           let tableHTML = `<table class="process-table"><thead><tr>
                     <th>ID</th><th>Arrival</th><th>Burst</th><th>Pri</th>
                     <th>Remain</th><th>State</th><th>Wait</th><th>TAT</th>
                 </tr></thead><tbody>`;
-          processes.sort((a, b) =>
-            a.id.localeCompare(b.id, undefined, { numeric: true })
-          );
-          processes.forEach((p) => {
+          // Sort by ID for consistent display, particularly if custom IDs are not P_c numerically
+          const displayProcesses = [...processes].sort((a, b) => {
+            const aIsCustom = a.id.startsWith("P_c");
+            const bIsCustom = b.id.startsWith("P_c");
+            if (aIsCustom && !bIsCustom) return 1;
+            if (!aIsCustom && bIsCustom) return -1;
+            return a.id.localeCompare(b.id, undefined, { numeric: true });
+          });
+
+          displayProcesses.forEach((p) => {
             tableHTML += `<tr id="proc-row-${p.id}">
                         <td>${p.id}</td><td>${p.arrivalTime}</td><td>${
               p.burstTime
@@ -730,7 +884,6 @@
           unhighlightProcessRow();
         }
         function renderReadyQueue() {
-          /* ... same as RR ... */
           readyQueueDiv.innerHTML = "";
           if (readyQueue.length === 0) {
             const emptyText = document.createElement("div");
@@ -752,7 +905,6 @@
           }
         }
         function renderCPU() {
-          /* ... same as RR ... */
           unhighlightProcessRow();
           if (runningProcessId) {
             const proc = findProcessById(runningProcessId);
@@ -769,7 +921,6 @@
           }
         }
         function highlightProcessRow(processId) {
-          /* ... same as RR ... */
           unhighlightProcessRow();
           runningProcessRow = document.getElementById(`proc-row-${processId}`);
           if (runningProcessRow) {
@@ -777,14 +928,12 @@
           }
         }
         function unhighlightProcessRow() {
-          /* ... same as RR ... */
           if (runningProcessRow) {
             runningProcessRow.classList.remove("highlight-running");
             runningProcessRow = null;
           }
         }
         function renderGanttChart() {
-          /* ... same as RR ... */
           ganttChartTrack.innerHTML = "";
           ganttTimeMarkersContainer.innerHTML = "";
           if (ganttData.length === 0 && currentTime === 0) {
@@ -823,7 +972,6 @@
           ganttChartContainer.scrollLeft = ganttChartTrack.scrollWidth;
         }
         function addTimeMarker(time, pixelWidth = 30) {
-          /* ... same as RR ... */
           const marker = document.createElement("div");
           marker.className = "gantt-time-marker";
           marker.style.left = `${time * pixelWidth}px`;
@@ -833,8 +981,14 @@
           ganttTimeMarkersContainer.appendChild(marker);
         }
         function renderMetrics() {
-          /* ... same as RR ... */
-          if (completedProcessesCount !== processes.length) return;
+          if (
+            completedProcessesCount !== processes.length ||
+            processes.length === 0
+          ) {
+            metricsDiv.innerHTML = ""; // Clear if not all completed or no processes
+            metricsDiv.style.display = "none";
+            return;
+          }
           let totalWT = 0,
             totalTAT = 0;
           processes.forEach((p) => {
@@ -850,7 +1004,6 @@
           metricsDiv.style.display = "block";
         }
         function updateProcessTableRow(process) {
-          /* ... same as RR ... */
           const row = document.getElementById(`proc-row-${process.id}`);
           if (row) {
             row.querySelector(".remaining-time").textContent =
@@ -864,23 +1017,26 @@
           }
         }
         function getProcessColor(processId) {
-          /* ... same as RR ... */
           if (!processId || processId === "Idle") return "var(--idle-color)";
-          try {
-            const num = parseInt(processId.substring(1), 10);
-            return processColors[
-              (num - 1 + processColors.length) % processColors.length
-            ];
-          } catch (e) {
-            return processColors[0];
+          let numPart = processId.replace(/[^0-9]/g, ""); // Extract numeric part
+          let num = parseInt(numPart, 10);
+          if (isNaN(num)) {
+            // Fallback if no number or complex ID
+            // Simple hash for non-numeric part if ID is like P_cA
+            let hash = 0;
+            for (let i = 0; i < processId.length; i++) {
+              hash = processId.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            num = Math.abs(hash);
           }
+          return processColors[
+            (num - 1 + processColors.length) % processColors.length
+          ];
         }
         function findProcessById(id) {
-          /* ... same as RR ... */
           return processes.find((p) => p.id === id);
         }
         function addGanttBlock(processId, isIdle) {
-          /* ... same as RR ... */
           const currentEntry = { id: processId, isIdle: isIdle };
           if (
             ganttData.length > 0 &&
@@ -896,23 +1052,85 @@
               end: currentTime + 1,
               isIdle: isIdle,
             });
-            lastGanttEntry = currentEntry;
           }
+          lastGanttEntry = currentEntry; // Update lastGanttEntry regardless
           renderGanttChart();
         }
 
-        // --- Simulation Logic ---
+        // --- Custom Process Management ---
+        function handleAddProcess() {
+          const arrivalTime = parseInt(arrivalTimeInput.value, 10);
+          const burstTime = parseInt(burstTimeInput.value, 10);
+          const priorityVal = priorityInput.value; // Keep as string initially for check
+          let priority = 1; // Default priority
 
-        // 11. Simulation Step (FCFS Logic)
+          if (priorityVal && !isNaN(parseInt(priorityVal, 10))) {
+            priority = parseInt(priorityVal, 10);
+            if (priority < 1) priority = 1; // Ensure priority is at least 1
+          }
+
+          if (isNaN(arrivalTime) || arrivalTime < 0) {
+            updateStatus(
+              "Invalid Arrival Time. Must be a non-negative number.",
+              false
+            );
+            return;
+          }
+          if (isNaN(burstTime) || burstTime <= 0) {
+            updateStatus(
+              "Invalid Burst Time. Must be a positive number.",
+              false
+            );
+            return;
+          }
+
+          const newProcess = {
+            id: `P_c${nextCustomProcessId}`, // Auto-generate ID
+            arrivalTime: arrivalTime,
+            burstTime: burstTime,
+            priority: priority,
+          };
+
+          userAddedProcesses.push(newProcess);
+          nextCustomProcessId++;
+
+          resetSimulation(); // This will re-initialize with the new custom process list
+
+          // Clear input fields
+          arrivalTimeInput.value = "";
+          burstTimeInput.value = "";
+          priorityInput.value = "";
+
+          // The status update is now handled by initializeSimulation called within resetSimulation
+        }
+
+        function handleClearCustomProcesses() {
+          userAddedProcesses = [];
+          nextCustomProcessId = 1;
+          resetSimulation(); // This will revert to initialProcessesData
+          // Status update handled by initializeSimulation
+        }
+
+        // --- Simulation Logic (FCFS) ---
         function simulationStep() {
-          if (isPaused || completedProcessesCount === processes.length) return;
+          if (
+            isPaused ||
+            (processes.length > 0 &&
+              completedProcessesCount === processes.length)
+          )
+            return;
+          if (processes.length === 0) {
+            // No processes to run
+            endSimulation();
+            updateStatus("No processes to simulate.", true);
+            return;
+          }
 
-          // A. Check for new arrivals & add to ready queue (FIFO)
           let newArrivals = false;
           processes.forEach((p) => {
             if (p.state === "New" && p.arrivalTime <= currentTime) {
               p.state = "Ready";
-              p._lastExecutionTime = currentTime; // Record when it became ready
+              p._lastExecutionTime = currentTime;
               readyQueue.push(p.id);
               updateProcessTableRow(p);
               newArrivals = true;
@@ -920,72 +1138,78 @@
           });
           if (newArrivals) renderReadyQueue();
 
-          // B. Handle running process (runs until completion)
-          let processCompleted = false;
           if (runningProcessId) {
             const runningProc = findProcessById(runningProcessId);
             runningProc.remainingBurstTime--;
-            updateProcessTableRow(runningProc); // Update remaining time live
-            addGanttBlock(runningProc.id, false); // Add/extend Gantt block
+            updateProcessTableRow(runningProc);
+            addGanttBlock(runningProc.id, false);
 
-            // Check Completion
             if (runningProc.remainingBurstTime === 0) {
               runningProc.state = "Terminated";
               runningProc.completionTime = currentTime + 1;
               runningProc.turnaroundTime =
                 runningProc.completionTime - runningProc.arrivalTime;
-              // Final Waiting Time calculation for completed process
-              // WT = TAT - BurstTime (no need to track _lastExecutionTime anymore here)
               runningProc.waitingTime =
                 runningProc.turnaroundTime - runningProc.burstTime;
               updateProcessTableRow(runningProc);
               completedProcessesCount++;
-              processCompleted = true;
-              runningProcessId = null; // Free the CPU
+              runningProcessId = null;
             }
           } else {
-            // CPU is Idle
-            addGanttBlock(null, true); // Add/extend idle block
+            addGanttBlock(null, true);
           }
 
-          // C. Select next process if CPU is idle (FCFS)
           if (!runningProcessId && readyQueue.length > 0) {
-            runningProcessId = readyQueue.shift(); // Get the first process in the queue
+            runningProcessId = readyQueue.shift();
             const nextProc = findProcessById(runningProcessId);
             nextProc.state = "Running";
-            // Calculate waiting time accumulated JUST BEFORE starting
             nextProc.waitingTime += currentTime - nextProc._lastExecutionTime;
             if (nextProc.startTime === -1) nextProc.startTime = currentTime;
             updateProcessTableRow(nextProc);
-            renderReadyQueue(); // Update queue display
+            renderReadyQueue();
           }
 
-          // D. Update UI (CPU, Clock)
-          renderCPU(); // Handles highlighting too
+          renderCPU();
           currentTime++;
           clockDiv.textContent = currentTime;
 
-          // E. Check for simulation end
-          if (completedProcessesCount === processes.length) {
+          if (
+            processes.length > 0 &&
+            completedProcessesCount === processes.length
+          ) {
             endSimulation();
           }
         }
 
-        // --- Simulation Controls (No TQ related logic) ---
         function startSimulation() {
-          if (simulationInterval) return;
-          if (currentTime > 0 && !isPaused) {
-            initializeSimulation();
+          if (simulationInterval) return; // Already running
+          if (processes.length === 0) {
+            updateStatus(
+              "No processes to simulate. Add processes first.",
+              false
+            );
+            return;
           }
+          // If starting from a completed or reset state, ensure `currentTime` etc. are fine
+          // `initializeSimulation` handles most of this, but if start is pressed after completion without reset:
+          if (
+            completedProcessesCount === processes.length &&
+            processes.length > 0
+          ) {
+            resetSimulation(); // Reset fully before starting again if all were completed
+          }
+
           isPaused = false;
           simulationInterval = setInterval(simulationStep, SIMULATION_SPEED_MS);
           startButton.disabled = true;
           pauseButton.disabled = false;
           pauseButton.textContent = "Pause";
+          addProcessButton.disabled = true; // Disable adding processes during simulation
+          clearCustomButton.disabled = true;
           updateStatus("Simulation started...", true);
         }
         function pauseSimulation() {
-          if (!simulationInterval && !isPaused) return;
+          if (!simulationInterval && !isPaused) return; // Not running or already paused effectively
           isPaused = !isPaused;
           if (isPaused) {
             pauseButton.textContent = "Resume";
@@ -996,7 +1220,13 @@
           }
         }
         function resetSimulation() {
-          initializeSimulation();
+          if (simulationInterval) {
+            clearInterval(simulationInterval);
+            simulationInterval = null;
+          }
+          initializeSimulation(); // This handles full state reset and UI update
+          addProcessButton.disabled = false; // Re-enable process management buttons
+          clearCustomButton.disabled = false;
         }
         function endSimulation() {
           if (simulationInterval) {
@@ -1004,15 +1234,15 @@
             simulationInterval = null;
           }
           updateStatus(`Simulation finished at Time: ${currentTime}.`, true);
-          startButton.disabled = true;
+          startButton.disabled = false; // Allow re-start (will trigger reset)
           pauseButton.disabled = true;
+          addProcessButton.disabled = false; // Re-enable
+          clearCustomButton.disabled = false;
           unhighlightProcessRow();
           renderMetrics();
         }
 
-        // --- Utility ---
         function updateStatus(message, isInfo = true) {
-          /* ... same as RR ... */
           statusDiv.textContent = message;
           statusDiv.className = `status ${
             isInfo ? "status-info" : "status-error"
@@ -1022,8 +1252,7 @@
 
         // --- Initial Setup ---
         createDOM();
-        applyStyles();
-        initializeSimulation(); // Set initial state and render
+        initializeSimulation();
       });
     </script>
   </body>

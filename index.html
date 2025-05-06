@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CPU Scheduling Algorithm Visualizers</title>
+    <style>
+      :root {
+        --bg-color: #f0f4f8;
+        --container-bg: #ffffff;
+        --header-color: #1a253c;
+        --text-color: #334155;
+        --border-color: #e2e8f0;
+        --accent-blue: #3b82f6;
+        --button-hover-factor: 0.9;
+        --box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
+          0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        --box-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
+          0 4px 6px -2px rgba(0, 0, 0, 0.05);
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
+          Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue",
+          sans-serif;
+        background-color: var(--bg-color);
+        color: var(--text-color);
+        line-height: 1.6;
+        min-height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 20px;
+      }
+
+      .container {
+        background-color: var(--container-bg);
+        padding: 40px;
+        border-radius: 12px;
+        box-shadow: var(--box-shadow-lg);
+        width: 100%;
+        max-width: 800px;
+        text-align: center;
+      }
+
+      h1 {
+        color: var(--header-color);
+        font-size: 2.5em;
+        margin-bottom: 10px;
+      }
+
+      .subtitle {
+        color: var(--text-color);
+        font-size: 1.1em;
+        margin-bottom: 40px;
+        opacity: 0.8;
+      }
+
+      .algorithms-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 20px;
+        margin-top: 30px;
+      }
+
+      .algorithm-card {
+        background: white;
+        border-radius: 8px;
+        padding: 25px;
+        text-decoration: none;
+        color: var(--text-color);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        border: 1px solid var(--border-color);
+      }
+
+      .algorithm-card:hover {
+        transform: translateY(-5px);
+        box-shadow: var(--box-shadow-lg);
+      }
+
+      .algorithm-card h2 {
+        color: var(--header-color);
+        font-size: 1.4em;
+        margin-bottom: 10px;
+      }
+
+      .algorithm-card p {
+        font-size: 0.9em;
+        opacity: 0.8;
+        margin-bottom: 15px;
+      }
+
+      .button {
+        display: inline-block;
+        padding: 10px 20px;
+        background-color: var(--accent-blue);
+        color: white;
+        border-radius: 6px;
+        text-decoration: none;
+        font-weight: 600;
+        transition: filter 0.2s ease;
+      }
+
+      .button:hover {
+        filter: brightness(var(--button-hover-factor));
+      }
+
+      @media (max-width: 600px) {
+        .container {
+          padding: 20px;
+        }
+
+        h1 {
+          font-size: 2em;
+        }
+
+        .algorithms-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>CPU Scheduling Algorithm Visualizers</h1>
+      <p class="subtitle">
+        Interactive visualizations of different CPU scheduling algorithms
+      </p>
+
+      <div class="algorithms-grid">
+        <a href="fcfs.html" class="algorithm-card">
+          <h2>First Come First Serve (FCFS)</h2>
+          <p>
+            A non-preemptive scheduling algorithm where processes are executed
+            in the order they arrive.
+          </p>
+          <span class="button">View Visualization</span>
+        </a>
+
+        <a href="sjf.html" class="algorithm-card">
+          <h2>Shortest Job First (SJF)</h2>
+          <p>
+            A scheduling algorithm that selects the process with the smallest
+            execution time to run next.
+          </p>
+          <span class="button">View Visualization</span>
+        </a>
+
+        <a href="round-robin.html" class="algorithm-card">
+          <h2>Round Robin (RR)</h2>
+          <p>
+            A preemptive scheduling algorithm that assigns a fixed time unit per
+            process in a circular manner.
+          </p>
+          <span class="button">View Visualization</span>
+        </a>
+
+        <a href="priority-queue.html" class="algorithm-card">
+          <h2>Priority Scheduling</h2>
+          <p>
+            A scheduling algorithm where each process is assigned a priority and
+            executed based on priority order.
+          </p>
+          <span class="button">View Visualization</span>
+        </a>
+      </div>
+    </div>
+  </body>
+</html>

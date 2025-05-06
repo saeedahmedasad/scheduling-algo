@@ -3,7 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SJF (Non-Preemptive) Visualizer</title>
+    <!-- Changed Title -->
+    <title>Priority Scheduling (Non-Preemptive) Visualizer</title>
     <style id="dynamic-styles">
       /* --- Base Styles & Variables --- */
       :root {
@@ -17,6 +18,7 @@
         --ready-color: #f59e0b; /* Amber */
         --running-color: #10b981; /* Emerald */
         --terminated-color: #6b7280; /* Gray */
+        --button-add: #3b82f6; /* Blue */
         --button-start: #22c55e; /* Green */
         --button-pause: #f59e0b; /* Amber */
         --button-reset: #ef4444; /* Red */
@@ -97,6 +99,45 @@
         border: 1px solid var(--border-color);
       }
 
+      /* --- Add Process Form --- */
+      .add-process-form {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 15px;
+        align-items: flex-end; /* Align items to bottom for button */
+        padding: 15px 20px; /* Padding inside form */
+        /* Removed bottom border, added full section styles */
+      }
+      .input-group {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .input-group label {
+        font-weight: 600;
+        font-size: 0.85em;
+        color: var(--header-color);
+      }
+      .input-group input {
+        padding: 7px 10px;
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius);
+        font-size: 0.95em;
+        width: 80px; /* Smaller width for inputs */
+      }
+      .input-group input[type="text"] {
+        width: 60px;
+      }
+      .input-group input:focus {
+        outline: 2px solid var(--accent-blue);
+        outline-offset: 1px;
+        border-color: var(--accent-blue);
+      }
+      .input-group input:disabled {
+        background-color: #e2e8f0;
+        cursor: not-allowed;
+      }
+
       /* --- Controls --- */
       .controls {
         display: flex;
@@ -107,8 +148,9 @@
         padding-bottom: 15px; /* Space below controls */
         border-bottom: 1px solid var(--border-color);
       }
-      /* Removed TQ Label/Input Styles */
-      .controls button {
+
+      .controls button,
+      #add-process-button {
         padding: 9px 18px;
         color: white;
         border: none;
@@ -120,17 +162,25 @@
           transform 0.1s ease, filter var(--transition-speed);
         box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
       }
-      .controls button:disabled {
+      .controls button:disabled,
+      #add-process-button:disabled {
         background-color: #cbd5e1 !important; /* Light slate */
         cursor: not-allowed;
         filter: grayscale(50%);
       }
-      .controls button:not(:disabled):hover {
+      .controls button:not(:disabled):hover,
+      #add-process-button:not(:disabled):hover {
         filter: brightness(var(--button-hover-factor));
       }
-      .controls button:active:not(:disabled) {
+      .controls button:active:not(:disabled),
+      #add-process-button:active:not(:disabled) {
         transform: scale(0.97);
         filter: brightness(calc(var(--button-hover-factor) * 0.95));
+      }
+      #add-process-button {
+        background-color: var(--button-add);
+        height: 35px; /* Match input height roughly */
+        align-self: flex-end; /* Align with bottom of inputs */
       }
       #start-button {
         background-color: var(--button-start);
@@ -153,6 +203,7 @@
         transition: background-color var(--transition-speed),
           color var(--transition-speed), opacity var(--transition-speed);
         opacity: 0; /* Start hidden for fade-in */
+        margin-top: 10px; /* Add some space above status */
       }
       .status.visible {
         opacity: 1;
@@ -162,6 +213,11 @@
         color: #059669;
         border: 1px solid #a7f3d0;
       } /* Lighter green */
+      .status-success {
+        background-color: #f0f9ff;
+        color: #0284c7;
+        border: 1px solid #bae6fd;
+      } /* Lighter blue for success */
       .status-error {
         background-color: #fef2f2;
         color: #dc2626;
@@ -171,7 +227,7 @@
       /* --- Visualization Area Layout --- */
       .visualization-area {
         display: grid; /* Use Grid for more control */
-        grid-template-columns: minmax(350px, 1.5fr) 2fr; /* Table | Queue/CPU/Gantt */
+        grid-template-columns: minmax(400px, 1.5fr) 2fr; /* Table | Queue/CPU/Gantt */
         gap: 25px;
       }
       .panel {
@@ -260,6 +316,7 @@
         border-radius: var(--border-radius);
       }
       .queue-item {
+        position: relative; /* Needed for priority badge */
         width: var(--queue-item-size);
         height: var(--queue-item-size);
         line-height: var(--queue-item-size);
@@ -273,6 +330,18 @@
           opacity var(--transition-speed) ease;
         opacity: 0;
         transform: scale(0.8) translateY(10px); /* Start smaller and slightly lower */
+      }
+      .queue-item .priority-badge {
+        /* Small badge for priority */
+        position: absolute;
+        top: -5px;
+        right: -5px;
+        background-color: rgba(0, 0, 0, 0.5);
+        color: white;
+        font-size: 0.7em;
+        padding: 1px 4px;
+        border-radius: 3px;
+        line-height: 1.2;
       }
       .queue-item.visible {
         opacity: 1;
@@ -347,7 +416,7 @@
         border-radius: var(--border-radius);
         background-color: #f8fafc; /* Light background for chart area */
         margin-top: 10px;
-        max-width: 800px;
+        max-width: 800px; /* Limit width for better viewing */
       }
       .gantt-chart-track {
         display: flex;
@@ -448,9 +517,6 @@
         .visualization-area {
           grid-template-columns: 1fr; /* Stack panels */
         }
-        .left-panel {
-          max-width: none;
-        } /* Allow table to take full width */
       }
       @media (max-width: 768px) {
         body {
@@ -462,16 +528,30 @@
         h1 {
           font-size: 1.5em;
         }
+        .add-process-form {
+          justify-content: center; /* Center inputs on smaller screens */
+        }
         .controls {
+          flex-direction: column; /* Stack controls vertically */
+          align-items: stretch; /* Stretch items */
           gap: 10px;
         }
-        .controls button {
-          padding: 8px 14px;
-          font-size: 0.9em;
+        .controls button,
+        #add-process-button {
+          padding: 10px 16px; /* Slightly larger buttons */
+          font-size: 1em;
         }
         .cpu-clock-container {
           grid-template-columns: 1fr;
         } /* Stack CPU/Clock */
+        .metrics p {
+          display: block; /* Stack metrics */
+          margin-left: 0;
+          margin-right: 0;
+        }
+        .gantt-chart-container {
+          max-width: none; /* Allow gantt to take full width */
+        }
       }
     </style>
   </head>
@@ -482,24 +562,23 @@
         // --- Configuration ---
         const SIMULATION_SPEED_MS = 650; // Speed of each time unit
 
-        // --- Test Data ---
+        // --- Initial Test Data (Includes Priority: lower number = higher priority) ---
         const initialProcessesData = [
-          { id: "P1", arrivalTime: 0, burstTime: 8, priority: 2 },
-          { id: "P2", arrivalTime: 1, burstTime: 4, priority: 1 },
-          { id: "P3", arrivalTime: 2, burstTime: 9, priority: 3 },
+          { id: "P1", arrivalTime: 0, burstTime: 8, priority: 3 },
+          { id: "P2", arrivalTime: 1, burstTime: 4, priority: 1 }, // Higher priority
+          { id: "P3", arrivalTime: 2, burstTime: 9, priority: 4 },
           { id: "P4", arrivalTime: 3, burstTime: 5, priority: 2 },
-          { id: "P5", arrivalTime: 4, burstTime: 2, priority: 4 }, // Shortest
-          { id: "P6", arrivalTime: 5, burstTime: 6, priority: 1 },
-          { id: "P7", arrivalTime: 6, burstTime: 3, priority: 5 },
+          { id: "P5", arrivalTime: 4, burstTime: 2, priority: 5 }, // Lowest priority
         ];
+        let userAddedProcessesData = []; // Store custom processes separately
 
         // --- State Variables ---
         let processes = [];
-        let readyQueue = []; // Stores process IDs
+        let readyQueue = []; // Stores process OBJECTS for sorting
         let ganttData = [];
         let currentTime = 0;
         let runningProcessId = null;
-        let runningProcessRow = null;
+        let runningProcessRow = null; // For highlighting table row
         let completedProcessesCount = 0;
         let simulationInterval = null;
         let isPaused = false;
@@ -521,7 +600,13 @@
 
         // --- DOM Elements ---
         let container,
-          controlsDiv,
+          addProcessForm,
+          processIdInput,
+          arrivalTimeInput,
+          burstTimeInput,
+          priorityInput,
+          addProcessButton;
+        let controlsDiv,
           visualizationDiv,
           processTableContainer,
           readyQueueDiv,
@@ -537,18 +622,98 @@
 
         // --- Core Functions ---
 
-        // 1. Create DOM (Identical to FCFS version, except title)
+        // 1. Create DOM (Added Add Process Form, Removed TQ Input)
         function createDOM() {
           container = document.createElement("div");
           container.className = "container";
 
           const title = document.createElement("h1");
-          title.textContent = "SJF (Non-Preemptive) Visualizer"; // Changed Title
+          title.textContent = "Priority Scheduling (Non-Preemptive) Visualizer"; // Changed Title
           container.appendChild(title);
 
-          // Controls (No Time Quantum Input)
+          // --- Add Process Form ---
+          addProcessForm = document.createElement("form");
+          addProcessForm.className = "add-process-form section";
+          addProcessForm.addEventListener("submit", (e) => e.preventDefault()); // Prevent default form submission
+
+          const formTitle = document.createElement("h4");
+          formTitle.textContent = "Add Custom Process";
+          formTitle.style.width = "100%"; // Span full width
+          formTitle.style.textAlign = "left";
+          formTitle.style.marginBottom = "15px";
+          addProcessForm.appendChild(formTitle);
+
+          // Input Group Function
+          const createInputGroup = (
+            id,
+            labelText,
+            type = "number",
+            placeholder = ""
+          ) => {
+            const group = document.createElement("div");
+            group.className = "input-group";
+            const label = document.createElement("label");
+            label.htmlFor = id;
+            label.textContent = labelText;
+            const input = document.createElement("input");
+            input.type = type;
+            input.id = id;
+            input.name = id;
+            input.placeholder = placeholder;
+            if (type === "number") {
+              input.min = "0"; // Non-negative arrival, burst, priority
+              input.step = "1";
+            }
+            group.appendChild(label);
+            group.appendChild(input);
+            return { group, input };
+          };
+
+          // Create Inputs
+          const idGroup = createInputGroup("process-id", "ID", "text", "P6");
+          processIdInput = idGroup.input;
+          const arrivalGroup = createInputGroup(
+            "arrival-time",
+            "Arrival",
+            "number",
+            "5"
+          );
+          arrivalTimeInput = arrivalGroup.input;
+          const burstGroup = createInputGroup(
+            "burst-time",
+            "Burst",
+            "number",
+            "4"
+          );
+          burstTimeInput = burstGroup.input;
+          burstTimeInput.min = "1"; // Burst must be > 0
+          const priorityGroup = createInputGroup(
+            "priority",
+            "Priority",
+            "number",
+            "3"
+          );
+          priorityInput = priorityGroup.input; // Lower number = higher priority
+
+          // Add Button
+          addProcessButton = document.createElement("button");
+          addProcessButton.id = "add-process-button";
+          addProcessButton.textContent = "Add Process";
+          addProcessButton.type = "button"; // Important: Prevent form submission
+          addProcessButton.addEventListener("click", handleAddProcess);
+
+          addProcessForm.appendChild(idGroup.group);
+          addProcessForm.appendChild(arrivalGroup.group);
+          addProcessForm.appendChild(burstGroup.group);
+          addProcessForm.appendChild(priorityGroup.group);
+          addProcessForm.appendChild(addProcessButton);
+          container.appendChild(addProcessForm);
+          // --- End Add Process Form ---
+
+          // Controls (Removed Time Quantum Input)
           controlsDiv = document.createElement("div");
           controlsDiv.className = "controls";
+
           startButton = document.createElement("button");
           startButton.id = "start-button";
           startButton.textContent = "Start";
@@ -562,6 +727,7 @@
           resetButton.id = "reset-button";
           resetButton.textContent = "Reset";
           resetButton.addEventListener("click", resetSimulation);
+
           controlsDiv.appendChild(startButton);
           controlsDiv.appendChild(pauseButton);
           controlsDiv.appendChild(resetButton);
@@ -569,11 +735,11 @@
 
           // Status Display
           statusDiv = document.createElement("div");
-          statusDiv.className = "status status-info";
+          statusDiv.className = "status"; // Removed default class
           statusDiv.id = "status-message";
           container.appendChild(statusDiv);
 
-          // Visualization Area (Grid Layout) - Same as RR/FCFS
+          // Visualization Area (Grid Layout) - Same structure
           visualizationDiv = document.createElement("div");
           visualizationDiv.className = "visualization-area";
           const leftPanel = document.createElement("div");
@@ -584,16 +750,18 @@
           processTableContainer.id = "process-table-container";
           leftPanel.appendChild(tableTitle);
           leftPanel.appendChild(processTableContainer);
+
           const rightPanel = document.createElement("div");
           rightPanel.className = "panel right-panel";
           const queueSection = document.createElement("div");
           queueSection.className = "section";
           const queueTitle = document.createElement("h3");
-          queueTitle.textContent = "Ready Queue";
+          queueTitle.textContent = "Ready Queue (Sorted by Priority)"; // Updated title
           readyQueueDiv = document.createElement("div");
           readyQueueDiv.id = "ready-queue";
           queueSection.appendChild(queueTitle);
           queueSection.appendChild(readyQueueDiv);
+
           const cpuClockSection = document.createElement("div");
           cpuClockSection.className = "section cpu-clock-container";
           const cpuItem = document.createElement("div");
@@ -618,6 +786,7 @@
           clockItem.appendChild(clockDiv);
           cpuClockSection.appendChild(cpuItem);
           cpuClockSection.appendChild(clockItem);
+
           const ganttSection = document.createElement("div");
           ganttSection.className = "section gantt-section";
           const ganttTitle = document.createElement("h3");
@@ -637,10 +806,12 @@
           ganttSection.appendChild(ganttTitle);
           ganttSection.appendChild(ganttChartContainer);
           ganttSection.appendChild(ganttAxisLabel);
+
           metricsDiv = document.createElement("div");
           metricsDiv.id = "metrics";
           metricsDiv.className = "metrics section";
           metricsDiv.style.display = "none";
+
           rightPanel.appendChild(queueSection);
           rightPanel.appendChild(cpuClockSection);
           rightPanel.appendChild(ganttSection);
@@ -652,26 +823,36 @@
           document.body.appendChild(container);
         }
 
-        // 2. Inject CSS (Using <style> tag in head)
-        function applyStyles() {
-          /* Styles are already in the head */
-        }
+        // 2. Inject CSS (Using <style> tag in head) - No change needed
 
-        // 3. Initialize Simulation (Identical to FCFS)
+        // 3. Initialize Simulation (Combines initial and user data)
         function initializeSimulation() {
-          processes = JSON.parse(JSON.stringify(initialProcessesData)).map(
-            (p) => ({
+          // Combine initial and user-added process data
+          const allProcessData = [
+            ...initialProcessesData,
+            ...userAddedProcessesData,
+          ];
+
+          processes = JSON.parse(JSON.stringify(allProcessData)).map(
+            (p, index) => ({
               ...p,
-              remainingBurstTime: p.burstTime,
+              id: p.id || `P${initialProcessesData.length + index + 1}`, // Generate unique ID if missing
+              arrivalTime: Number(p.arrivalTime) || 0,
+              burstTime: Number(p.burstTime) || 1,
+              priority: Number(p.priority) || 99, // Default low priority if missing
+              remainingBurstTime: Number(p.burstTime) || 1,
               state: "New",
               startTime: -1,
               completionTime: -1,
               waitingTime: 0,
               turnaroundTime: 0,
-              _lastExecutionTime: p.arrivalTime,
-              _color: getProcessColor(p.id),
+              _lastExecutionTime: Number(p.arrivalTime) || 0,
+              _color: getProcessColor(
+                p.id || `P${initialProcessesData.length + index + 1}`
+              ),
             })
           );
+
           readyQueue = [];
           ganttData = [];
           currentTime = 0;
@@ -680,10 +861,12 @@
           completedProcessesCount = 0;
           lastGanttEntry = null;
           isPaused = false;
+
           if (simulationInterval) {
             clearInterval(simulationInterval);
             simulationInterval = null;
           }
+
           renderProcessTable();
           renderReadyQueue();
           renderCPU();
@@ -691,27 +874,127 @@
           clockDiv.textContent = "0";
           metricsDiv.innerHTML = "";
           metricsDiv.style.display = "none";
-          updateStatus("Simulation reset. Press Start.", true);
+          updateStatus("Simulation reset. Add processes or press Start.", true);
+
+          // Reset/Enable Controls
           startButton.disabled = false;
           pauseButton.textContent = "Pause";
           pauseButton.disabled = true;
+          enableAddProcessForm(true);
         }
 
-        // --- Rendering Functions (Identical to FCFS/RR) ---
+        // 4. Handle Add Process
+        function handleAddProcess() {
+          const id = processIdInput.value.trim();
+          const arrivalTime = parseInt(arrivalTimeInput.value, 10);
+          const burstTime = parseInt(burstTimeInput.value, 10);
+          const priority = parseInt(priorityInput.value, 10);
+
+          // --- Validation ---
+          if (!id) {
+            updateStatus("Error: Process ID cannot be empty.", false);
+            return;
+          }
+          if (isNaN(arrivalTime) || arrivalTime < 0) {
+            updateStatus(
+              "Error: Arrival Time must be a non-negative integer.",
+              false
+            );
+            return;
+          }
+          if (isNaN(burstTime) || burstTime <= 0) {
+            updateStatus(
+              "Error: Burst Time must be a positive integer.",
+              false
+            );
+            return;
+          }
+          if (isNaN(priority) || priority < 0) {
+            updateStatus(
+              "Error: Priority must be a non-negative integer.",
+              false
+            );
+            return;
+          }
+
+          // Check for duplicate ID (in both initial and user-added)
+          const combinedData = [
+            ...initialProcessesData,
+            ...userAddedProcessesData,
+          ];
+          if (combinedData.some((p) => p.id === id)) {
+            updateStatus(`Error: Process ID "${id}" already exists.`, false);
+            return;
+          }
+          // --- End Validation ---
+
+          const newProcess = { id, arrivalTime, burstTime, priority };
+          userAddedProcessesData.push(newProcess);
+
+          // Add to the live table immediately if simulation hasn't started
+          if (!simulationInterval && !isPaused && currentTime === 0) {
+            initializeSimulation(); // Re-initialize to include the new process in the main list and table
+            updateStatus(
+              `Process ${id} added successfully. Ready to start.`,
+              true,
+              "success"
+            );
+          } else {
+            // If sim running/paused/finished, just update the table visually (it will be included on Reset)
+            addProcessToTable(newProcess);
+            updateStatus(
+              `Process ${id} added. It will be included in the next simulation run after Reset.`,
+              true,
+              "info"
+            );
+          }
+
+          // Clear form
+          processIdInput.value = "";
+          arrivalTimeInput.value = "";
+          burstTimeInput.value = "";
+          priorityInput.value = "";
+          processIdInput.focus(); // Focus back on ID for next entry
+        }
+
+        // Helper to add a row to the table without full re-render (used after sim starts)
+        function addProcessToTable(p) {
+          const table = processTableContainer.querySelector(
+            ".process-table tbody"
+          );
+          if (table) {
+            const row = table.insertRow();
+            row.id = `proc-row-${p.id}`;
+            row.innerHTML = `
+                    <td>${p.id}</td>
+                    <td>${p.arrivalTime}</td>
+                    <td>${p.burstTime}</td>
+                    <td>${p.priority}</td>
+                    <td class="remaining-time">${p.burstTime}</td>
+                    <td class="state-cell state-New">New</td>
+                    <td class="wait-time">0</td>
+                    <td class="turnaround-time">-</td>
+                `;
+          }
+        }
+
+        // --- Rendering Functions (Added Priority Column) ---
         function renderProcessTable() {
-          /* ... same as FCFS/RR ... */
           let tableHTML = `<table class="process-table"><thead><tr>
-                    <th>ID</th><th>Arrival</th><th>Burst</th><th>Pri</th>
+                    <th>ID</th><th>Arrival</th><th>Burst</th><th>Priority</th>
                     <th>Remain</th><th>State</th><th>Wait</th><th>TAT</th>
-                </tr></thead><tbody>`;
-          processes.sort((a, b) =>
+                </tr></thead><tbody>`; // Added Priority Col Header
+          // Sort processes by ID for consistent table display
+          const displayProcesses = [...processes].sort((a, b) =>
             a.id.localeCompare(b.id, undefined, { numeric: true })
           );
-          processes.forEach((p) => {
+
+          displayProcesses.forEach((p) => {
             tableHTML += `<tr id="proc-row-${p.id}">
-                        <td>${p.id}</td><td>${p.arrivalTime}</td><td>${
-              p.burstTime
-            }</td><td>${p.priority}</td>
+                        <td>${p.id}</td>
+                        <td>${p.arrivalTime}</td>
+                        <td>${p.burstTime}</td>
+                        <td>${p.priority}</td>
                         <td class="remaining-time">${p.remainingBurstTime}</td>
                         <td class="state-cell state-${p.state}">${p.state}</td>
                         <td class="wait-time">${p.waitingTime}</td>
@@ -722,10 +1005,9 @@
           });
           tableHTML += `</tbody></table>`;
           processTableContainer.innerHTML = tableHTML;
-          unhighlightProcessRow();
+          unhighlightProcessRow(); // Ensure no row is highlighted initially
         }
         function renderReadyQueue() {
-          /* ... same as FCFS/RR ... */
           readyQueueDiv.innerHTML = "";
           if (readyQueue.length === 0) {
             const emptyText = document.createElement("div");
@@ -733,25 +1015,26 @@
             emptyText.textContent = "Queue Empty";
             readyQueueDiv.appendChild(emptyText);
           } else {
-            // Sort ready queue display visually by ID for consistency, though logic uses burst time
-            const sortedQueue = [...readyQueue].sort((a, b) =>
-              a.localeCompare(b, undefined, { numeric: true })
-            );
-            sortedQueue.forEach((pid, index) => {
+            // Display based on the current order in readyQueue (already sorted by priority)
+            readyQueue.forEach((proc, index) => {
               const item = document.createElement("div");
               item.className = "queue-item";
-              item.textContent = pid;
-              const proc = findProcessById(pid);
-              item.style.backgroundColor = proc
-                ? proc._color
-                : "var(--idle-color)";
+              item.textContent = proc.id;
+              item.style.backgroundColor = proc._color;
+              item.title = `Priority: ${proc.priority}`; // Add tooltip for priority
+              // Optional: Add a small visual badge for priority
+              const badge = document.createElement("span");
+              badge.className = "priority-badge";
+              badge.textContent = proc.priority;
+              item.appendChild(badge);
               readyQueueDiv.appendChild(item);
+              // Add animation class with delay
               setTimeout(() => item.classList.add("visible"), 30 * index);
             });
           }
         }
         function renderCPU() {
-          /* ... same as FCFS/RR ... */
+          // Same as before
           unhighlightProcessRow();
           if (runningProcessId) {
             const proc = findProcessById(runningProcessId);
@@ -768,7 +1051,7 @@
           }
         }
         function highlightProcessRow(processId) {
-          /* ... same as FCFS/RR ... */
+          // Same as before
           unhighlightProcessRow();
           runningProcessRow = document.getElementById(`proc-row-${processId}`);
           if (runningProcessRow) {
@@ -776,14 +1059,14 @@
           }
         }
         function unhighlightProcessRow() {
-          /* ... same as FCFS/RR ... */
+          // Same as before
           if (runningProcessRow) {
             runningProcessRow.classList.remove("highlight-running");
             runningProcessRow = null;
           }
         }
         function renderGanttChart() {
-          /* ... same as FCFS/RR ... */
+          // Same as before
           ganttChartTrack.innerHTML = "";
           ganttTimeMarkersContainer.innerHTML = "";
           if (ganttData.length === 0 && currentTime === 0) {
@@ -793,6 +1076,7 @@
           const blockPixelWidth = 30;
           let totalDuration = 0;
           const timePoints = new Set([0]);
+
           ganttData.forEach((block) => {
             const blockDiv = document.createElement("div");
             blockDiv.className = "gantt-block";
@@ -800,6 +1084,7 @@
             blockDiv.style.width = `${duration * blockPixelWidth}px`;
             totalDuration = Math.max(totalDuration, block.end);
             timePoints.add(block.end);
+
             if (block.isIdle) {
               blockDiv.classList.add("idle");
               blockDiv.textContent = `Idle`;
@@ -812,17 +1097,33 @@
             }
             ganttChartTrack.appendChild(blockDiv);
           });
+
+          // Add markers only at intervals or significant points for clarity
           const sortedTimePoints = Array.from(timePoints).sort((a, b) => a - b);
-          sortedTimePoints.forEach((time) =>
-            addTimeMarker(time, blockPixelWidth)
-          );
+          const markerStep = Math.max(1, Math.floor(totalDuration / 20)); // Aim for ~20 markers max
+          let lastMarkerTime = -markerStep;
+          sortedTimePoints.forEach((time) => {
+            if (
+              time === 0 ||
+              time >= lastMarkerTime + markerStep ||
+              time === totalDuration
+            ) {
+              addTimeMarker(time, blockPixelWidth);
+              lastMarkerTime = time;
+            }
+          });
+          // Ensure last time point always has a marker if missed
+          if (lastMarkerTime < totalDuration && totalDuration > 0) {
+            addTimeMarker(totalDuration, blockPixelWidth);
+          }
+
           ganttChartTrack.style.minWidth = `${
-            totalDuration * blockPixelWidth
-          }px`;
+            totalDuration * blockPixelWidth + 2
+          }px`; // +2 for border
           ganttChartContainer.scrollLeft = ganttChartTrack.scrollWidth;
         }
         function addTimeMarker(time, pixelWidth = 30) {
-          /* ... same as FCFS/RR ... */
+          // Same as before
           const marker = document.createElement("div");
           marker.className = "gantt-time-marker";
           marker.style.left = `${time * pixelWidth}px`;
@@ -832,8 +1133,12 @@
           ganttTimeMarkersContainer.appendChild(marker);
         }
         function renderMetrics() {
-          /* ... same as FCFS/RR ... */
-          if (completedProcessesCount !== processes.length) return;
+          // Same as before
+          if (
+            completedProcessesCount !== processes.length ||
+            processes.length === 0
+          )
+            return;
           let totalWT = 0,
             totalTAT = 0;
           processes.forEach((p) => {
@@ -843,13 +1148,13 @@
           const avgWT = (totalWT / processes.length).toFixed(2);
           const avgTAT = (totalTAT / processes.length).toFixed(2);
           metricsDiv.innerHTML = `
-                    <h3>Performance Metrics</h3>
-                    <p>Avg. Waiting Time: <span>${avgWT}</span></p>
-                    <p>Avg. Turnaround Time: <span>${avgTAT}</span></p>`;
-          metricsDiv.style.display = "block";
+              <h3>Performance Metrics</h3>
+              <p>Avg. Waiting Time: <span>${avgWT}</span></p>
+              <p>Avg. Turnaround Time: <span>${avgTAT}</span></p>`;
+          metricsDiv.style.display = "block"; // Show metrics
         }
         function updateProcessTableRow(process) {
-          /* ... same as FCFS/RR ... */
+          // Same as before (Priority doesn't change)
           const row = document.getElementById(`proc-row-${process.id}`);
           if (row) {
             row.querySelector(".remaining-time").textContent =
@@ -863,29 +1168,34 @@
           }
         }
         function getProcessColor(processId) {
-          /* ... same as FCFS/RR ... */
+          // Same as before
           if (!processId || processId === "Idle") return "var(--idle-color)";
           try {
-            const num = parseInt(processId.substring(1), 10);
+            // Attempt to extract number for consistent coloring
+            const match = processId.match(/\d+/);
+            const num = match
+              ? parseInt(match[0], 10)
+              : processId.charCodeAt(0); // Fallback if no number
             return processColors[
               (num - 1 + processColors.length) % processColors.length
             ];
           } catch (e) {
-            return processColors[0];
+            return processColors[0]; // Default color
           }
         }
         function findProcessById(id) {
-          /* ... same as FCFS/RR ... */
+          // Same as before
           return processes.find((p) => p.id === id);
         }
         function addGanttBlock(processId, isIdle) {
-          /* ... same as FCFS/RR ... */
+          // Same as before
           const currentEntry = { id: processId, isIdle: isIdle };
           if (
             ganttData.length > 0 &&
             lastGanttEntry &&
             lastGanttEntry.id === currentEntry.id &&
-            lastGanttEntry.isIdle === currentEntry.isIdle
+            lastGanttEntry.isIdle === currentEntry.isIdle &&
+            ganttData[ganttData.length - 1].end === currentTime // Ensure continuity
           ) {
             ganttData[ganttData.length - 1].end = currentTime + 1;
           } else {
@@ -895,156 +1205,244 @@
               end: currentTime + 1,
               isIdle: isIdle,
             });
-            lastGanttEntry = currentEntry;
           }
+          lastGanttEntry = { id: processId, isIdle: isIdle }; // Update last entry type *after* potentially modifying
           renderGanttChart();
         }
 
-        // --- Simulation Logic ---
+        // --- Simulation Logic (Priority Implementation) ---
 
-        // 11. Simulation Step (SJF Non-Preemptive Logic)
+        // 11. Simulation Step
         function simulationStep() {
           if (isPaused || completedProcessesCount === processes.length) return;
+
+          let stateChanged = false; // Flag for UI updates
 
           // A. Check for new arrivals & add to ready queue
           let newArrivals = false;
           processes.forEach((p) => {
             if (p.state === "New" && p.arrivalTime <= currentTime) {
               p.state = "Ready";
-              p._lastExecutionTime = currentTime; // Record when it became ready
-              readyQueue.push(p.id);
+              p._lastExecutionTime = currentTime; // Time it became ready
+              readyQueue.push(p); // Add the process object
               updateProcessTableRow(p);
+              stateChanged = true;
               newArrivals = true;
             }
           });
-          // Important: Render queue AFTER checking all arrivals for the current time step
-          if (newArrivals) renderReadyQueue();
 
-          // B. Handle running process (runs until completion)
-          let processCompleted = false;
+          // B. Sort Ready Queue if new processes arrived or if currently idle (to ensure order)
+          // Sort by priority (lower number first), then arrival time (FCFS for ties)
+          if (newArrivals || (!runningProcessId && readyQueue.length > 1)) {
+            // Only sort if needed
+            readyQueue.sort((a, b) => {
+              if (a.priority !== b.priority) {
+                return a.priority - b.priority; // Lower priority number first
+              }
+              return a.arrivalTime - b.arrivalTime; // FCFS for tie-break
+            });
+            if (newArrivals) stateChanged = true; // Queue order might change visuals
+          }
+
+          // C. Handle running process (Non-Preemptive: runs until completion)
           if (runningProcessId) {
             const runningProc = findProcessById(runningProcessId);
             runningProc.remainingBurstTime--;
-            updateProcessTableRow(runningProc);
-            addGanttBlock(runningProc.id, false);
+            addGanttBlock(runningProc.id, false); // Add to Gantt Chart
+            updateProcessTableRow(runningProc); // Update remaining time in table
 
-            // Check Completion
+            // Check for Completion
             if (runningProc.remainingBurstTime === 0) {
               runningProc.state = "Terminated";
               runningProc.completionTime = currentTime + 1;
               runningProc.turnaroundTime =
                 runningProc.completionTime - runningProc.arrivalTime;
+              // Final waiting time calculation
               runningProc.waitingTime =
                 runningProc.turnaroundTime - runningProc.burstTime;
               updateProcessTableRow(runningProc);
               completedProcessesCount++;
-              processCompleted = true;
               runningProcessId = null; // Free the CPU
+              stateChanged = true;
+              renderMetrics(); // Render metrics as soon as last process finishes
             }
+            // NO Preemption check needed for non-preemptive priority
           } else {
             // CPU is Idle
-            addGanttBlock(null, true);
+            addGanttBlock(null, true); // Add Idle block to Gantt
           }
 
-          // C. Select next process if CPU is idle (SJF Logic)
+          // D. Select next process if CPU is idle and queue isn't empty
           if (!runningProcessId && readyQueue.length > 0) {
-            let shortestJobId = null;
-            let shortestBurst = Infinity;
-            let shortestJobIndex = -1;
+            const nextProcess = readyQueue.shift(); // Get highest priority from sorted queue
+            runningProcessId = nextProcess.id;
+            nextProcess.state = "Running";
 
-            // Find the shortest job among currently ready processes
-            for (let i = 0; i < readyQueue.length; i++) {
-              const pid = readyQueue[i];
-              const proc = findProcessById(pid);
-              if (proc && proc.remainingBurstTime < shortestBurst) {
-                shortestBurst = proc.remainingBurstTime;
-                shortestJobId = pid;
-                shortestJobIndex = i;
-              }
-              // Tie-breaking: FCFS (implicitly handled by selecting the first one found with the minimum burst)
+            // Calculate waiting time incurred *since it was last ready*
+            // Ensure waiting time doesn't decrease (can happen with edge cases if not careful)
+            const waitIncrement = Math.max(
+              0,
+              currentTime - nextProcess._lastExecutionTime
+            );
+            nextProcess.waitingTime += waitIncrement;
+
+            if (nextProcess.startTime === -1) {
+              nextProcess.startTime = currentTime; // Record first start time
             }
-
-            // If a shortest job is found
-            if (shortestJobId !== null) {
-              runningProcessId = shortestJobId; // Assign the shortest job to run
-              readyQueue.splice(shortestJobIndex, 1); // Remove it from the ready queue
-
-              const nextProc = findProcessById(runningProcessId);
-              nextProc.state = "Running";
-              // Calculate waiting time accumulated JUST BEFORE starting
-              nextProc.waitingTime += currentTime - nextProc._lastExecutionTime;
-              if (nextProc.startTime === -1) nextProc.startTime = currentTime;
-              updateProcessTableRow(nextProc);
-              renderReadyQueue(); // Update queue display (after removal)
-            }
+            updateProcessTableRow(nextProcess);
+            stateChanged = true;
           }
 
-          // D. Update UI (CPU, Clock)
-          renderCPU();
+          // E. Update UI elements if state changed
+          if (stateChanged) {
+            renderReadyQueue(); // Update queue display (reflects sorted order)
+            renderCPU(); // Update CPU status box
+          }
+
+          // F. Increment Clock
           currentTime++;
           clockDiv.textContent = currentTime;
 
-          // E. Check for simulation end
-          if (completedProcessesCount === processes.length) {
+          // G. Check for simulation end
+          if (
+            completedProcessesCount === processes.length &&
+            processes.length > 0
+          ) {
+            // Already handled in step C, but double-check
+            endSimulation();
+          } else if (processes.length === 0 && currentTime > 0) {
+            // Handle case where no processes were added
             endSimulation();
           }
         }
 
-        // --- Simulation Controls (Identical to FCFS) ---
+        // --- Simulation Controls ---
         function startSimulation() {
-          /* ... same as FCFS ... */
-          if (simulationInterval) return;
-          if (currentTime > 0 && !isPaused) {
-            initializeSimulation();
+          if (simulationInterval) return; // Already running
+
+          // If starting from scratch or after reset, ensure initialization includes latest user processes
+          if (currentTime === 0 && !isPaused) {
+            initializeSimulation(); // Re-init to capture any last-minute process additions
           }
+
+          // Don't start if there are no processes
+          if (processes.length === 0) {
+            updateStatus("Cannot start: No processes added.", false);
+            return;
+          }
+
           isPaused = false;
           simulationInterval = setInterval(simulationStep, SIMULATION_SPEED_MS);
           startButton.disabled = true;
           pauseButton.disabled = false;
           pauseButton.textContent = "Pause";
+          enableAddProcessForm(false); // Disable add process form while running
           updateStatus("Simulation started...", true);
         }
         function pauseSimulation() {
-          /* ... same as FCFS ... */
-          if (!simulationInterval && !isPaused) return;
+          // Same as before
+          if (
+            !simulationInterval &&
+            !isPaused &&
+            completedProcessesCount === processes.length
+          )
+            return; // Don't pause if finished
+
           isPaused = !isPaused;
           if (isPaused) {
+            if (simulationInterval) clearInterval(simulationInterval); // Clear interval on pause
+            simulationInterval = null;
             pauseButton.textContent = "Resume";
             updateStatus(`Simulation paused at Time: ${currentTime}`, true);
+            enableAddProcessForm(false); // Keep disabled during pause
           } else {
+            // Restart the interval on resume
+            simulationInterval = setInterval(
+              simulationStep,
+              SIMULATION_SPEED_MS
+            );
             pauseButton.textContent = "Pause";
             updateStatus("Simulation resumed...", true);
+            enableAddProcessForm(false); // Still disabled when resumed
           }
         }
         function resetSimulation() {
-          initializeSimulation();
-        }
-        function endSimulation() {
-          /* ... same as FCFS ... */
           if (simulationInterval) {
             clearInterval(simulationInterval);
             simulationInterval = null;
           }
-          updateStatus(`Simulation finished at Time: ${currentTime}.`, true);
+          // Re-initialize, which now includes user-added processes
+          initializeSimulation();
+          enableAddProcessForm(true); // Re-enable form on reset
+        }
+        function endSimulation() {
+          if (simulationInterval) {
+            clearInterval(simulationInterval);
+            simulationInterval = null;
+          }
+          // Don't show success message if no processes ran
+          if (currentTime > 0 || processes.length > 0) {
+            updateStatus(
+              `Simulation finished at Time: ${currentTime}.`,
+              true,
+              "success"
+            );
+          } else {
+            updateStatus(
+              "Simulation ended (no processes to run).",
+              true,
+              "info"
+            );
+          }
+
           startButton.disabled = true;
           pauseButton.disabled = true;
-          unhighlightProcessRow();
-          renderMetrics();
+          pauseButton.textContent = "Pause";
+          enableAddProcessForm(false); // Keep add form disabled after finish
+          unhighlightProcessRow(); // Ensure no row is highlighted
+          renderMetrics(); // Calculate and display final metrics
         }
 
         // --- Utility ---
-        function updateStatus(message, isInfo = true) {
-          /* ... same as FCFS/RR ... */
+        function enableAddProcessForm(enable) {
+          processIdInput.disabled = !enable;
+          arrivalTimeInput.disabled = !enable;
+          burstTimeInput.disabled = !enable;
+          priorityInput.disabled = !enable;
+          addProcessButton.disabled = !enable;
+        }
+
+        function updateStatus(message, isGood = true, type = "info") {
           statusDiv.textContent = message;
-          statusDiv.className = `status ${
-            isInfo ? "status-info" : "status-error"
-          }`;
+          let statusClass = "status-info"; // Default
+          if (!isGood) {
+            statusClass = "status-error";
+          } else if (type === "success") {
+            statusClass = "status-success";
+          }
+
+          statusDiv.className = `status ${statusClass}`;
+          // Force reflow to restart animation if message repeats
+          statusDiv.style.display = "none";
+          statusDiv.offsetHeight; // Trigger reflow
+          statusDiv.style.display = "";
           statusDiv.classList.add("visible");
+
+          // Auto-hide info/success messages after a delay
+          if (isGood && type !== "error") {
+            // Don't auto-hide errors
+            setTimeout(() => {
+              if (statusDiv.textContent === message) {
+                // Only hide if message hasn't changed
+                statusDiv.classList.remove("visible");
+              }
+            }, 4000); // Hide after 4 seconds
+          }
         }
 
         // --- Initial Setup ---
         createDOM();
-        applyStyles();
+        // applyStyles(); // Styles are in <style> tag
         initializeSimulation(); // Set initial state and render
       });
     </script>
